@@ -8,9 +8,10 @@
   const state = {
     items: loadItems(),
     movements: loadMovements(),
-    selectedStockItemId: null,
     stockSearchTerm: "",
     listSearchTerm: "",
+    modalItemId: null,
+    modalType: "입고",
   };
 
   // ---------- storage ----------
@@ -29,7 +30,7 @@
     } catch {
       /* ignore */
     }
-    // migrate legacy usage-log entries (from the previous version) if present
+    // migrate legacy usage-log entries (from an earlier version) if present
     try {
       const legacy = JSON.parse(localStorage.getItem(LEGACY_USAGES_KEY));
       if (Array.isArray(legacy) && legacy.length) {
@@ -160,11 +161,7 @@
     fields.dd.value = d || "";
   }
 
-  const stockDateContainer = document.querySelector('[data-date-input="stock-date"]');
-  const stockDateFields = initDateInput(stockDateContainer);
-  setDateValue(stockDateFields, new Date().toISOString().slice(0, 10));
-
-  // ================= 소모품 목록 등록 (bulk) =================
+  // ================= 소모품 등록 (bulk) =================
   const bulkTbody = document.getElementById("bulk-item-tbody");
   const addRowBtn = document.getElementById("add-row-btn");
   const bulkSaveBtn = document.getElementById("bulk-save-btn");
@@ -210,7 +207,7 @@
     });
   }
 
-  function resetBulkRows(initialCount = 3) {
+  function resetBulkRows(initialCount = 1) {
     bulkTbody.innerHTML = "";
     bulkPhotos.clear();
     for (let i = 0; i < initialCount; i++) addBulkRow();
@@ -262,9 +259,9 @@
     renderListItems();
   });
 
-  function filterItems(term) {
-    if (!term) return state.items;
-    return state.items.filter(
+  function filterItems(items, term) {
+    if (!term) return items;
+    return items.filter(
       (it) =>
         it.name.toLowerCase().includes(term) ||
         (it.category || "").toLowerCase().includes(term)
@@ -272,7 +269,7 @@
   }
 
   function renderListItems() {
-    const filtered = filterItems(state.listSearchTerm);
+    const filtered = filterItems(state.items, state.listSearchTerm);
     listTbody.innerHTML = "";
 
     filtered.forEach((item) => {
@@ -299,10 +296,6 @@
     if (!confirm("이 소모품을 삭제하시겠습니까? 관련 입출고 내역은 유지됩니다.")) return;
     state.items = state.items.filter((it) => it.id !== id);
     saveItems();
-    if (state.selectedStockItemId === id) {
-      state.selectedStockItemId = null;
-      renderSelectedStockInfo();
-    }
     renderListItems();
     renderStockItems();
   }
@@ -311,88 +304,112 @@
   const stockSearchInput = document.getElementById("stock-search");
   const stockTbody = document.getElementById("stock-item-tbody");
   const stockEmptyMsg = document.getElementById("stock-item-empty");
-  const stockSelectedInfo = document.getElementById("stock-selected-info");
-
-  const stockForm = document.getElementById("stock-form");
-  const stockTypeInput = document.getElementById("stock-type");
-  const stockQtyInput = document.getElementById("stock-qty");
-  const stockRecipientInput = document.getElementById("stock-recipient");
-  const stockSubmitBtn = document.getElementById("stock-submit");
-
-  const stockHistoryTbody = document.getElementById("stock-history-tbody");
-  const stockHistoryEmptyMsg = document.getElementById("stock-history-empty");
 
   stockSearchInput.addEventListener("input", () => {
     state.stockSearchTerm = stockSearchInput.value.trim().toLowerCase();
     renderStockItems();
   });
 
+  function getItemTotals(itemId) {
+    let totalIn = 0;
+    let totalOut = 0;
+    state.movements.forEach((m) => {
+      if (m.itemId !== itemId) return;
+      if (m.type === "입고") totalIn += m.qty;
+      else if (m.type === "출고") totalOut += m.qty;
+    });
+    return { totalIn, totalOut, current: totalIn - totalOut };
+  }
+
   function renderStockItems() {
-    const filtered = filterItems(state.stockSearchTerm);
+    const filtered = filterItems(state.items, state.stockSearchTerm);
     stockTbody.innerHTML = "";
 
     filtered.forEach((item) => {
-      const isSelected = item.id === state.selectedStockItemId;
+      const { totalIn, totalOut, current } = getItemTotals(item.id);
       const tr = document.createElement("tr");
-      if (isSelected) tr.classList.add("selected");
       tr.innerHTML = `
         <td>${photoCellHtml(item.photo)}</td>
         <td>${escapeHtml(item.name)}</td>
         <td>${escapeHtml(item.category)}</td>
         <td>${escapeHtml(item.unit)}</td>
-        <td><button type="button" class="select-btn ${isSelected ? "selected" : ""}" data-id="${item.id}">${isSelected ? "선택됨" : "선택"}</button></td>
+        <td>${totalIn}</td>
+        <td>${totalOut}</td>
+        <td class="current-stock ${current < 0 ? "negative" : ""}">${current}</td>
+        <td>
+          <div class="stock-actions">
+            <button type="button" class="stock-in-btn" data-id="${item.id}" data-type="입고">입고</button>
+            <button type="button" class="stock-out-btn" data-id="${item.id}" data-type="출고">출고</button>
+          </div>
+        </td>
       `;
       stockTbody.appendChild(tr);
     });
 
     stockEmptyMsg.hidden = filtered.length !== 0;
 
-    stockTbody.querySelectorAll(".select-btn").forEach((btn) => {
-      btn.addEventListener("click", () => selectStockItem(btn.dataset.id));
+    stockTbody.querySelectorAll(".stock-in-btn, .stock-out-btn").forEach((btn) => {
+      btn.addEventListener("click", () => openStockModal(btn.dataset.id, btn.dataset.type));
     });
   }
 
-  function selectStockItem(id) {
-    state.selectedStockItemId = id === state.selectedStockItemId ? null : id;
-    renderStockItems();
-    renderSelectedStockInfo();
-  }
+  // ---------- 입고/출고 모달 ----------
+  const modalOverlay = document.getElementById("stock-modal-overlay");
+  const modalTitle = document.getElementById("stock-modal-title");
+  const modalItemName = document.getElementById("stock-modal-item-name");
+  const modalForm = document.getElementById("stock-modal-form");
+  const modalQtyInput = document.getElementById("modal-qty");
+  const modalRecipientInput = document.getElementById("modal-recipient");
+  const modalCancelBtn = document.getElementById("stock-modal-cancel");
 
-  function getSelectedStockItem() {
-    return state.items.find((it) => it.id === state.selectedStockItemId) || null;
-  }
+  const modalDateContainer = document.querySelector('[data-date-input="modal-date"]');
+  const modalDateFields = initDateInput(modalDateContainer);
 
-  function renderSelectedStockInfo() {
-    const item = getSelectedStockItem();
-    if (item) {
-      stockSelectedInfo.textContent = `선택된 소모품: ${item.name}${item.category ? ` (${item.category})` : ""}${item.unit ? ` / 단위: ${item.unit}` : ""}`;
-      stockSelectedInfo.classList.add("active");
-      stockSubmitBtn.disabled = false;
-    } else {
-      stockSelectedInfo.textContent = "선택된 소모품이 없습니다. 위 목록에서 소모품을 선택해주세요.";
-      stockSelectedInfo.classList.remove("active");
-      stockSubmitBtn.disabled = true;
-    }
-  }
-
-  stockForm.addEventListener("submit", (e) => {
-    e.preventDefault();
-    const item = getSelectedStockItem();
+  function openStockModal(itemId, type) {
+    const item = state.items.find((it) => it.id === itemId);
     if (!item) return;
 
-    const date = getDateValue(stockDateFields);
+    state.modalItemId = itemId;
+    state.modalType = type;
+
+    modalTitle.textContent = type === "입고" ? "입고 등록" : "출고 등록";
+    modalItemName.textContent = `${item.name}${item.category ? ` (${item.category})` : ""}${item.unit ? ` / 단위: ${item.unit}` : ""}`;
+    modalQtyInput.value = "";
+    modalRecipientInput.value = "";
+    setDateValue(modalDateFields, new Date().toISOString().slice(0, 10));
+
+    modalOverlay.hidden = false;
+    modalQtyInput.focus();
+  }
+
+  function closeStockModal() {
+    modalOverlay.hidden = true;
+    state.modalItemId = null;
+  }
+
+  modalCancelBtn.addEventListener("click", closeStockModal);
+  modalOverlay.addEventListener("click", (e) => {
+    if (e.target === modalOverlay) closeStockModal();
+  });
+
+  modalForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const item = state.items.find((it) => it.id === state.modalItemId);
+    if (!item) return;
+
+    const date = getDateValue(modalDateFields);
     if (!date) {
       alert("날짜를 올바르게 입력해주세요. (예: 2026-08-07)");
       return;
     }
 
-    const qty = Number(stockQtyInput.value);
+    const qty = Number(modalQtyInput.value);
     if (!qty || qty <= 0) {
       alert("수량을 올바르게 입력해주세요.");
       return;
     }
 
-    const recipient = stockRecipientInput.value.trim();
+    const recipient = modalRecipientInput.value.trim();
     if (!recipient) {
       alert("수령자를 입력해주세요.");
       return;
@@ -404,7 +421,7 @@
       itemName: item.name,
       itemCategory: item.category,
       itemUnit: item.unit,
-      type: stockTypeInput.value,
+      type: state.modalType,
       date,
       qty,
       recipient,
@@ -413,47 +430,11 @@
     state.movements.unshift(movement);
     saveMovements();
 
-    stockQtyInput.value = "";
-    stockRecipientInput.value = "";
-    setDateValue(stockDateFields, new Date().toISOString().slice(0, 10));
-
-    renderStockHistory();
+    closeStockModal();
+    renderStockItems();
   });
-
-  function renderStockHistory() {
-    stockHistoryTbody.innerHTML = "";
-
-    state.movements.forEach((m) => {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td>${escapeHtml(m.date)}</td>
-        <td>${escapeHtml(m.type)}</td>
-        <td>${escapeHtml(m.itemName)}</td>
-        <td>${escapeHtml(m.itemCategory)}</td>
-        <td>${escapeHtml(String(m.qty))}</td>
-        <td>${escapeHtml(m.itemUnit)}</td>
-        <td>${escapeHtml(m.recipient)}</td>
-        <td><button type="button" class="delete-btn" data-id="${m.id}">삭제</button></td>
-      `;
-      stockHistoryTbody.appendChild(tr);
-    });
-
-    stockHistoryEmptyMsg.hidden = state.movements.length !== 0;
-
-    stockHistoryTbody.querySelectorAll(".delete-btn").forEach((btn) => {
-      btn.addEventListener("click", () => deleteMovement(btn.dataset.id));
-    });
-  }
-
-  function deleteMovement(id) {
-    state.movements = state.movements.filter((m) => m.id !== id);
-    saveMovements();
-    renderStockHistory();
-  }
 
   // ================= init =================
   renderListItems();
   renderStockItems();
-  renderSelectedStockInfo();
-  renderStockHistory();
 })();

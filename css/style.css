@@ -359,6 +359,65 @@ tbody tr.selected {
   color: var(--text-muted);
 }
 
+/* ---------- Stock action buttons ---------- */
+.stock-actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.stock-in-btn {
+  background: #1f9d55;
+}
+
+.stock-in-btn:hover:not(:disabled) {
+  background: #17803f;
+}
+
+.stock-out-btn {
+  background: var(--danger);
+}
+
+.stock-out-btn:hover:not(:disabled) {
+  background: var(--danger-dark);
+}
+
+.current-stock {
+  font-weight: 700;
+}
+
+.current-stock.negative {
+  color: var(--danger);
+}
+
+/* ---------- Modal ---------- */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 26, 34, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 1rem;
+}
+
+.modal-overlay[hidden] {
+  display: none;
+}
+
+.modal-box {
+  background: var(--card-bg);
+  border-radius: 10px;
+  padding: 1.5rem;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+}
+
+.modal-box h3 {
+  margin-top: 0;
+}
+
 @media (max-width: 720px) {
   .app-shell {
     flex-direction: column;
