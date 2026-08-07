@@ -9,6 +9,9 @@
   --danger: #d1453b;
   --danger-dark: #b93a31;
   --selected-bg: #eaf1ff;
+  --sidebar-bg: #1c2b3a;
+  --sidebar-text: #c7d2de;
+  --sidebar-active-bg: #2f6feb;
 }
 
 * {
@@ -22,24 +25,82 @@ body {
   color: var(--text);
 }
 
-header {
-  background: var(--primary);
+.app-shell {
+  display: flex;
+  min-height: 100vh;
+}
+
+/* ---------- Sidebar ---------- */
+.sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  background: var(--sidebar-bg);
+  color: var(--sidebar-text);
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-header {
+  padding: 1.4rem 1.2rem;
+  font-size: 1.3rem;
+  font-weight: 700;
   color: #fff;
-  padding: 1.25rem 1.5rem;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-header h1 {
-  margin: 0;
-  font-size: 1.4rem;
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  padding: 0.75rem;
+  gap: 0.3rem;
 }
 
-main {
-  max-width: 960px;
-  margin: 1.5rem auto;
-  padding: 0 1rem 3rem;
+.nav-btn {
+  text-align: left;
+  background: transparent;
+  color: var(--sidebar-text);
+  border: none;
+  border-radius: 6px;
+  padding: 0.65rem 0.8rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.nav-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.nav-btn.active {
+  background: var(--sidebar-active-bg);
+  color: #fff;
+  font-weight: 700;
+}
+
+/* ---------- Content ---------- */
+.content {
+  flex: 1;
+  min-width: 0;
+  padding: 1.75rem 2rem 3rem;
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
+}
+
+.view {
+  display: none;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.view.active {
+  display: flex;
+}
+
+.view h2 {
+  margin: 0;
+  font-size: 1.3rem;
 }
 
 .card {
@@ -50,11 +111,17 @@ main {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
-.card h2 {
+.card h3 {
   margin-top: 0;
-  font-size: 1.1rem;
+  font-size: 1rem;
   border-bottom: 1px solid var(--border);
   padding-bottom: 0.6rem;
+}
+
+.hint {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  margin-top: 0;
 }
 
 .form-grid {
@@ -80,16 +147,18 @@ main {
 }
 
 input[type="text"],
-input[type="date"],
-input[type="number"] {
+input[type="number"],
+select {
   padding: 0.5rem 0.6rem;
   border: 1px solid var(--border);
   border-radius: 6px;
   font-size: 0.95rem;
   color: var(--text);
+  font-family: inherit;
 }
 
-input:focus {
+input:focus,
+select:focus {
   outline: 2px solid var(--primary);
   outline-offset: 1px;
 }
@@ -97,6 +166,11 @@ input:focus {
 .form-actions {
   display: flex;
   justify-content: flex-end;
+}
+
+.form-actions.between {
+  justify-content: space-between;
+  margin-top: 0.9rem;
 }
 
 button {
@@ -118,6 +192,16 @@ button:hover:not(:disabled) {
 button:disabled {
   background: #a9b6c9;
   cursor: not-allowed;
+}
+
+.secondary-btn {
+  background: #fff;
+  color: var(--primary);
+  border: 1px solid var(--primary);
+}
+
+.secondary-btn:hover:not(:disabled) {
+  background: var(--selected-bg);
 }
 
 .search-box {
@@ -213,6 +297,85 @@ tbody tr.selected {
   background: var(--selected-bg);
   border-color: var(--primary);
   font-weight: 600;
+}
+
+/* ---------- Photo cell ---------- */
+.photo-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.photo-input {
+  max-width: 130px;
+  font-size: 0.75rem;
+}
+
+.photo-preview,
+.photo-thumb {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: #f4f6f9;
+  flex-shrink: 0;
+}
+
+.photo-thumb-empty {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  border: 1px dashed var(--border);
+  background: #f8f9fb;
+  flex-shrink: 0;
+}
+
+.bulk-item-table input[type="text"] {
+  min-width: 100px;
+}
+
+/* ---------- Date input (YYYY-MM-DD split) ---------- */
+.date-input {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.date-input .date-yyyy {
+  width: 4.4rem;
+}
+
+.date-input .date-mm,
+.date-input .date-dd {
+  width: 2.8rem;
+}
+
+.date-input input {
+  text-align: center;
+}
+
+.date-sep {
+  color: var(--text-muted);
+}
+
+@media (max-width: 720px) {
+  .app-shell {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    width: 100%;
+  }
+
+  .sidebar-nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .content {
+    padding: 1.25rem 1rem 2.5rem;
+  }
 }
 
 @media (max-width: 600px) {
