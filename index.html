@@ -132,13 +132,23 @@
 <div id="history-modal-overlay" class="modal-overlay" hidden>
   <div class="modal-box history-modal-box">
     <h3 id="history-modal-title">입출고 이력</h3>
+    <div class="history-filter">
+      <label>
+        연도
+        <select id="history-year"></select>
+      </label>
+      <label>
+        월
+        <select id="history-month"></select>
+      </label>
+    </div>
     <div class="table-wrap">
       <table id="history-table">
         <thead>
           <tr>
             <th>날짜</th>
-            <th>구분</th>
-            <th>수량</th>
+            <th>입고</th>
+            <th>출고</th>
             <th>수령자</th>
           </tr>
         </thead>

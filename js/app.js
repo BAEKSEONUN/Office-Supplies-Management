@@ -12,6 +12,7 @@
     listSearchTerm: "",
     modalItemId: null,
     modalType: "입고",
+    historyItemId: null,
   };
 
   // ---------- storage ----------
@@ -469,16 +470,58 @@
   const historyTbody = document.getElementById("history-tbody");
   const historyEmptyMsg = document.getElementById("history-empty");
   const historyModalCloseBtn = document.getElementById("history-modal-close");
+  const historyYearSelect = document.getElementById("history-year");
+  const historyMonthSelect = document.getElementById("history-month");
+
+  const HISTORY_START_YEAR = 2026;
+
+  function populateHistoryFilters() {
+    const currentYear = new Date().getFullYear();
+    const lastYear = Math.max(currentYear + 5, HISTORY_START_YEAR);
+
+    historyYearSelect.innerHTML = `<option value="">전체</option>`;
+    for (let y = HISTORY_START_YEAR; y <= lastYear; y++) {
+      historyYearSelect.insertAdjacentHTML("beforeend", `<option value="${y}">${y}년</option>`);
+    }
+
+    historyMonthSelect.innerHTML = `<option value="">전체</option>`;
+    for (let m = 1; m <= 12; m++) {
+      const mm = String(m).padStart(2, "0");
+      historyMonthSelect.insertAdjacentHTML("beforeend", `<option value="${mm}">${m}월</option>`);
+    }
+  }
+
+  populateHistoryFilters();
 
   function openHistoryModal(itemId) {
     const item = state.items.find((it) => it.id === itemId);
     if (!item) return;
 
+    state.historyItemId = itemId;
     historyModalTitle.textContent = `${item.name} 입출고 이력`;
+    historyYearSelect.value = "";
+    historyMonthSelect.value = "";
+
+    renderHistoryTable();
+    historyModalOverlay.hidden = false;
+  }
+
+  function renderHistoryTable() {
+    const itemId = state.historyItemId;
+    if (!itemId) return;
+
+    const selectedYear = historyYearSelect.value;
+    const selectedMonth = historyMonthSelect.value;
 
     // most recent date first; within a date, most recently added first
     const entries = state.movements
-      .filter((m) => m.itemId === itemId)
+      .filter((m) => {
+        if (m.itemId !== itemId) return false;
+        const [y, mo] = m.date.split("-");
+        if (selectedYear && y !== selectedYear) return false;
+        if (selectedMonth && mo !== selectedMonth) return false;
+        return true;
+      })
       .sort((a, b) => b.date.localeCompare(a.date));
 
     historyTbody.innerHTML = "";
@@ -501,10 +544,12 @@
           const entry = entries[k];
           const tr = document.createElement("tr");
           const dateCell = k === i ? `<td rowspan="${groupSize}" class="history-date-cell">${escapeHtml(date)}</td>` : "";
+          const inCell = entry.type === "입고" ? escapeHtml(String(entry.qty)) : "-";
+          const outCell = entry.type === "출고" ? escapeHtml(String(entry.qty)) : "-";
           tr.innerHTML = `
             ${dateCell}
-            <td>${escapeHtml(entry.type)}</td>
-            <td>${escapeHtml(String(entry.qty))}</td>
+            <td>${inCell}</td>
+            <td>${outCell}</td>
             <td>${escapeHtml(entry.recipient)}</td>
           `;
           historyTbody.appendChild(tr);
@@ -512,13 +557,15 @@
         i = j;
       }
     }
-
-    historyModalOverlay.hidden = false;
   }
 
   function closeHistoryModal() {
     historyModalOverlay.hidden = true;
+    state.historyItemId = null;
   }
+
+  historyYearSelect.addEventListener("change", renderHistoryTable);
+  historyMonthSelect.addEventListener("change", renderHistoryTable);
 
   historyModalCloseBtn.addEventListener("click", closeHistoryModal);
   historyModalOverlay.addEventListener("click", (e) => {

@@ -450,6 +450,24 @@ tbody tr.selected {
   width: 90vw;
 }
 
+.history-filter {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 0.9rem;
+}
+
+.history-filter label {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  gap: 0.3rem;
+}
+
+.history-filter select {
+  min-width: 110px;
+}
+
 .history-date-cell {
   vertical-align: top;
   border-right: 1px solid var(--border);
