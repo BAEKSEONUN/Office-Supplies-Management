@@ -31,7 +31,6 @@
               <tr>
                 <th>사진</th>
                 <th>품목명</th>
-                <th>분류</th>
                 <th>단위</th>
                 <th>비고</th>
                 <th></th>
@@ -48,14 +47,13 @@
 
       <div class="card">
         <h3>등록된 소모품 조회</h3>
-        <input type="text" id="list-search" class="search-box" placeholder="품목명, 분류로 검색...">
+        <input type="text" id="list-search" class="search-box" placeholder="품목명으로 검색...">
         <div class="table-wrap">
           <table id="list-item-table">
             <thead>
               <tr>
                 <th>사진</th>
                 <th>품목명</th>
-                <th>분류</th>
                 <th>단위</th>
                 <th>비고</th>
                 <th></th>
@@ -73,19 +71,19 @@
       <h2>입출고 관리</h2>
 
       <div class="card">
-        <input type="text" id="stock-search" class="search-box" placeholder="품목명, 분류로 검색...">
+        <input type="text" id="stock-search" class="search-box" placeholder="품목명으로 검색...">
         <div class="table-wrap">
           <table id="stock-item-table">
             <thead>
               <tr>
                 <th>사진</th>
                 <th>품목명</th>
-                <th>분류</th>
                 <th>단위</th>
                 <th>총입고수량</th>
                 <th>총불출수량</th>
                 <th>현재고</th>
                 <th></th>
+                <th>월간 소비 사이클</th>
               </tr>
             </thead>
             <tbody id="stock-item-tbody"></tbody>
@@ -100,7 +98,7 @@
 
 <!-- 입고/출고 입력 모달 -->
 <div id="stock-modal-overlay" class="modal-overlay" hidden>
-  <div class="modal-box">
+  <div class="modal-box stock-modal-box">
     <h3 id="stock-modal-title">입고 등록</h3>
     <p id="stock-modal-item-name" class="selected-info active"></p>
     <form id="stock-modal-form" class="form-grid">

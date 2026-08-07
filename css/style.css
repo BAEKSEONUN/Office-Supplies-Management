@@ -429,8 +429,25 @@ tbody tr.selected {
   margin-top: 0;
 }
 
+.stock-modal-box {
+  max-width: 600px;
+  padding: 2rem;
+}
+
+.stock-modal-box .form-grid {
+  gap: 1.3rem 1.6rem;
+}
+
+.stock-modal-box input[type="number"],
+.stock-modal-box input[type="text"],
+.stock-modal-box .date-input input {
+  padding: 0.7rem 0.8rem;
+  font-size: 1.05rem;
+}
+
 .history-modal-box {
-  max-width: 480px;
+  max-width: 760px;
+  width: 90vw;
 }
 
 .history-date-cell {
@@ -442,6 +459,44 @@ tbody tr.selected {
 
 #history-table tbody tr td:not(.history-date-cell) {
   white-space: normal;
+}
+
+/* ---------- Monthly consumption cycle ---------- */
+.consumption-cycle {
+  font-size: 0.85rem;
+  line-height: 1.4;
+  min-width: 140px;
+  white-space: normal;
+}
+
+.consumption-rate {
+  color: var(--text-muted);
+}
+
+.consumption-warning {
+  display: inline-block;
+  margin-top: 0.25rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: #fdecea;
+  color: var(--danger-dark);
+  font-weight: 700;
+  font-size: 0.78rem;
+}
+
+.consumption-ok {
+  display: inline-block;
+  margin-top: 0.25rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: #e8f7ee;
+  color: #17803f;
+  font-weight: 700;
+  font-size: 0.78rem;
+}
+
+.consumption-none {
+  color: var(--text-muted);
 }
 
 @media (max-width: 720px) {

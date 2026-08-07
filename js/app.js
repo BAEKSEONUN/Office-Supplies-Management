@@ -181,7 +181,6 @@
         <img class="photo-preview" data-row-id="${rowId}" hidden alt="">
       </td>
       <td><input type="text" class="bulk-name" placeholder="품목명"></td>
-      <td><input type="text" class="bulk-category" placeholder="분류"></td>
       <td><input type="text" class="bulk-unit" placeholder="단위"></td>
       <td><input type="text" class="bulk-note" placeholder="비고"></td>
       <td><button type="button" class="delete-btn bulk-row-delete">삭제</button></td>
@@ -226,7 +225,6 @@
       const item = {
         id: genId(),
         name,
-        category: tr.querySelector(".bulk-category").value.trim(),
         unit: tr.querySelector(".bulk-unit").value.trim(),
         note: tr.querySelector(".bulk-note").value.trim(),
         photo: bulkPhotos.get(tr.dataset.rowId) || "",
@@ -261,11 +259,7 @@
 
   function filterItems(items, term) {
     if (!term) return items;
-    return items.filter(
-      (it) =>
-        it.name.toLowerCase().includes(term) ||
-        (it.category || "").toLowerCase().includes(term)
-    );
+    return items.filter((it) => it.name.toLowerCase().includes(term));
   }
 
   function renderListItems() {
@@ -277,7 +271,6 @@
       tr.innerHTML = `
         <td>${photoCellHtml(item.photo)}</td>
         <td>${escapeHtml(item.name)}</td>
-        <td>${escapeHtml(item.category)}</td>
         <td>${escapeHtml(item.unit)}</td>
         <td>${escapeHtml(item.note)}</td>
         <td><button type="button" class="delete-btn" data-id="${item.id}">삭제</button></td>
@@ -321,6 +314,39 @@
     return { totalIn, totalOut, current: totalIn - totalOut };
   }
 
+  // Monthly consumption cycle: average 출고(outgoing) quantity per month,
+  // based on the span from the earliest recorded 출고 date up to today.
+  function getMonthlyConsumption(itemId) {
+    const outs = state.movements.filter((m) => m.itemId === itemId && m.type === "출고");
+    if (outs.length === 0) return null;
+
+    const totalOut = outs.reduce((sum, m) => sum + m.qty, 0);
+    const earliestDate = outs.map((m) => m.date).sort()[0];
+    const [ey, em] = earliestDate.split("-").map(Number);
+    const now = new Date();
+    const monthsSpan = Math.max(1, (now.getFullYear() - ey) * 12 + (now.getMonth() + 1 - em) + 1);
+
+    return { avgPerMonth: totalOut / monthsSpan };
+  }
+
+  function consumptionCycleHtml(itemId, currentStock) {
+    const consumption = getMonthlyConsumption(itemId);
+    if (!consumption) {
+      return `<span class="consumption-none">이력 없음</span>`;
+    }
+
+    const avg = consumption.avgPerMonth;
+    const isShort = currentStock < avg;
+    const badge = isShort
+      ? `<span class="consumption-warning">⚠ 재고 부족</span>`
+      : `<span class="consumption-ok">재고 충분</span>`;
+
+    return `
+      <div class="consumption-rate">월 평균 소비량: 약 ${avg.toFixed(1)}개</div>
+      ${badge}
+    `;
+  }
+
   function renderStockItems() {
     const filtered = filterItems(state.items, state.stockSearchTerm);
     stockTbody.innerHTML = "";
@@ -331,7 +357,6 @@
       tr.innerHTML = `
         <td>${photoCellHtml(item.photo)}</td>
         <td>${escapeHtml(item.name)}</td>
-        <td>${escapeHtml(item.category)}</td>
         <td>${escapeHtml(item.unit)}</td>
         <td>${totalIn}</td>
         <td>${totalOut}</td>
@@ -343,6 +368,7 @@
             <button type="button" class="stock-history-btn" data-id="${item.id}">이력</button>
           </div>
         </td>
+        <td class="consumption-cycle">${consumptionCycleHtml(item.id, current)}</td>
       `;
       stockTbody.appendChild(tr);
     });
@@ -377,7 +403,7 @@
     state.modalType = type;
 
     modalTitle.textContent = type === "입고" ? "입고 등록" : "출고 등록";
-    modalItemName.textContent = `${item.name}${item.category ? ` (${item.category})` : ""}${item.unit ? ` / 단위: ${item.unit}` : ""}`;
+    modalItemName.textContent = `${item.name}${item.unit ? ` / 단위: ${item.unit}` : ""}`;
     modalQtyInput.value = "";
     modalRecipientInput.value = "";
     setDateValue(modalDateFields, new Date().toISOString().slice(0, 10));
@@ -423,7 +449,6 @@
       id: genId(),
       itemId: item.id,
       itemName: item.name,
-      itemCategory: item.category,
       itemUnit: item.unit,
       type: state.modalType,
       date,
