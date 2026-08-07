@@ -381,6 +381,17 @@ tbody tr.selected {
   background: var(--danger-dark);
 }
 
+.stock-history-btn {
+  background: #fff;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+}
+
+.stock-history-btn:hover:not(:disabled) {
+  background: #f4f6f9;
+  color: var(--text);
+}
+
 .current-stock {
   font-weight: 700;
 }
@@ -416,6 +427,21 @@ tbody tr.selected {
 
 .modal-box h3 {
   margin-top: 0;
+}
+
+.history-modal-box {
+  max-width: 480px;
+}
+
+.history-date-cell {
+  vertical-align: top;
+  border-right: 1px solid var(--border);
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+#history-table tbody tr td:not(.history-date-cell) {
+  white-space: normal;
 }
 
 @media (max-width: 720px) {

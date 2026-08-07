@@ -340,6 +340,7 @@
           <div class="stock-actions">
             <button type="button" class="stock-in-btn" data-id="${item.id}" data-type="입고">입고</button>
             <button type="button" class="stock-out-btn" data-id="${item.id}" data-type="출고">출고</button>
+            <button type="button" class="stock-history-btn" data-id="${item.id}">이력</button>
           </div>
         </td>
       `;
@@ -350,6 +351,9 @@
 
     stockTbody.querySelectorAll(".stock-in-btn, .stock-out-btn").forEach((btn) => {
       btn.addEventListener("click", () => openStockModal(btn.dataset.id, btn.dataset.type));
+    });
+    stockTbody.querySelectorAll(".stock-history-btn").forEach((btn) => {
+      btn.addEventListener("click", () => openHistoryModal(btn.dataset.id));
     });
   }
 
@@ -432,6 +436,68 @@
 
     closeStockModal();
     renderStockItems();
+  });
+
+  // ---------- 입출고 이력 모달 ----------
+  const historyModalOverlay = document.getElementById("history-modal-overlay");
+  const historyModalTitle = document.getElementById("history-modal-title");
+  const historyTbody = document.getElementById("history-tbody");
+  const historyEmptyMsg = document.getElementById("history-empty");
+  const historyModalCloseBtn = document.getElementById("history-modal-close");
+
+  function openHistoryModal(itemId) {
+    const item = state.items.find((it) => it.id === itemId);
+    if (!item) return;
+
+    historyModalTitle.textContent = `${item.name} 입출고 이력`;
+
+    // most recent date first; within a date, most recently added first
+    const entries = state.movements
+      .filter((m) => m.itemId === itemId)
+      .sort((a, b) => b.date.localeCompare(a.date));
+
+    historyTbody.innerHTML = "";
+
+    if (entries.length === 0) {
+      historyEmptyMsg.hidden = false;
+    } else {
+      historyEmptyMsg.hidden = true;
+
+      // group consecutive same-date entries so the date is only shown once,
+      // spanning every entry recorded for that day
+      let i = 0;
+      while (i < entries.length) {
+        const date = entries[i].date;
+        let j = i;
+        while (j < entries.length && entries[j].date === date) j++;
+        const groupSize = j - i;
+
+        for (let k = i; k < j; k++) {
+          const entry = entries[k];
+          const tr = document.createElement("tr");
+          const dateCell = k === i ? `<td rowspan="${groupSize}" class="history-date-cell">${escapeHtml(date)}</td>` : "";
+          tr.innerHTML = `
+            ${dateCell}
+            <td>${escapeHtml(entry.type)}</td>
+            <td>${escapeHtml(String(entry.qty))}</td>
+            <td>${escapeHtml(entry.recipient)}</td>
+          `;
+          historyTbody.appendChild(tr);
+        }
+        i = j;
+      }
+    }
+
+    historyModalOverlay.hidden = false;
+  }
+
+  function closeHistoryModal() {
+    historyModalOverlay.hidden = true;
+  }
+
+  historyModalCloseBtn.addEventListener("click", closeHistoryModal);
+  historyModalOverlay.addEventListener("click", (e) => {
+    if (e.target === historyModalOverlay) closeHistoryModal();
   });
 
   // ================= init =================
