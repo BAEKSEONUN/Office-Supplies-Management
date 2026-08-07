@@ -10,9 +10,13 @@
 <div class="app-shell">
   <aside class="sidebar">
     <div class="sidebar-header">QL VPP</div>
+    <div class="lang-switch">
+      <button type="button" class="lang-btn" data-lang="ko">한국어</button>
+      <button type="button" class="lang-btn" data-lang="vi">Tiếng Việt</button>
+    </div>
     <nav class="sidebar-nav">
-      <button type="button" class="nav-btn active" data-view="list">소모품 목록</button>
-      <button type="button" class="nav-btn" data-view="stock">입출고 관리</button>
+      <button type="button" class="nav-btn active" data-view="list" data-i18n="nav_list">소모품 목록</button>
+      <button type="button" class="nav-btn" data-view="stock" data-i18n="nav_stock">입출고 관리</button>
     </nav>
   </aside>
 
@@ -20,19 +24,19 @@
 
     <!-- 소모품 목록 (등록 + 조회) -->
     <section id="view-list" class="view active">
-      <h2>소모품 목록</h2>
+      <h2 data-i18n="nav_list">소모품 목록</h2>
 
       <div class="card">
-        <h3>소모품 등록</h3>
-        <p class="hint">여러 소모품을 한 번에 등록할 수 있습니다. 사진은 선택 사항입니다.</p>
+        <h3 data-i18n="register_h3">소모품 등록</h3>
+        <p class="hint" data-i18n="register_hint">여러 소모품을 한 번에 등록할 수 있습니다. 사진은 선택 사항입니다.</p>
         <div class="table-wrap">
           <table id="bulk-item-table">
             <thead>
               <tr>
-                <th>사진</th>
-                <th>품목명</th>
-                <th>단위</th>
-                <th>비고</th>
+                <th data-i18n="th_photo">사진</th>
+                <th data-i18n="th_name">품목명</th>
+                <th data-i18n="th_unit">단위</th>
+                <th data-i18n="th_note">비고</th>
                 <th></th>
               </tr>
             </thead>
@@ -40,56 +44,56 @@
           </table>
         </div>
         <div class="form-actions between">
-          <button type="button" id="add-row-btn" class="secondary-btn">+ 행 추가</button>
-          <button type="button" id="bulk-save-btn">일괄 등록</button>
+          <button type="button" id="add-row-btn" class="secondary-btn" data-i18n="add_row_btn">+ 행 추가</button>
+          <button type="button" id="bulk-save-btn" data-i18n="bulk_save_btn">일괄 등록</button>
         </div>
       </div>
 
       <div class="card">
-        <h3>등록된 소모품 조회</h3>
-        <input type="text" id="list-search" class="search-box" placeholder="품목명으로 검색...">
+        <h3 data-i18n="list_query_h3">등록된 소모품 조회</h3>
+        <input type="text" id="list-search" class="search-box" data-i18n-placeholder="search_placeholder" placeholder="품목명으로 검색...">
         <div class="table-wrap">
           <table id="list-item-table">
             <thead>
               <tr>
-                <th>사진</th>
-                <th>품목명</th>
-                <th>단위</th>
-                <th>비고</th>
+                <th data-i18n="th_photo">사진</th>
+                <th data-i18n="th_name">품목명</th>
+                <th data-i18n="th_unit">단위</th>
+                <th data-i18n="th_note">비고</th>
                 <th></th>
               </tr>
             </thead>
             <tbody id="list-item-tbody"></tbody>
           </table>
         </div>
-        <p id="list-item-empty" class="empty-msg" hidden>등록된 소모품이 없습니다.</p>
+        <p id="list-item-empty" class="empty-msg" hidden data-i18n="list_empty">등록된 소모품이 없습니다.</p>
       </div>
     </section>
 
     <!-- 입출고 관리 -->
     <section id="view-stock" class="view">
-      <h2>입출고 관리</h2>
+      <h2 data-i18n="nav_stock">입출고 관리</h2>
 
       <div class="card">
-        <input type="text" id="stock-search" class="search-box" placeholder="품목명으로 검색...">
+        <input type="text" id="stock-search" class="search-box" data-i18n-placeholder="search_placeholder" placeholder="품목명으로 검색...">
         <div class="table-wrap">
           <table id="stock-item-table">
             <thead>
               <tr>
-                <th>사진</th>
-                <th>품목명</th>
-                <th>단위</th>
-                <th>총입고수량</th>
-                <th>총불출수량</th>
-                <th>현재고</th>
+                <th data-i18n="th_photo">사진</th>
+                <th data-i18n="th_name">품목명</th>
+                <th data-i18n="th_unit">단위</th>
+                <th data-i18n="th_total_in">총입고수량</th>
+                <th data-i18n="th_total_out">총불출수량</th>
+                <th data-i18n="th_current">현재고</th>
                 <th></th>
-                <th>월간 소비 사이클</th>
+                <th data-i18n="th_consumption">월간 소비 사이클</th>
               </tr>
             </thead>
             <tbody id="stock-item-tbody"></tbody>
           </table>
         </div>
-        <p id="stock-item-empty" class="empty-msg" hidden>등록된 소모품이 없습니다. 소모품 목록에서 먼저 등록해주세요.</p>
+        <p id="stock-item-empty" class="empty-msg" hidden data-i18n="stock_empty">등록된 소모품이 없습니다. 소모품 목록에서 먼저 등록해주세요.</p>
       </div>
     </section>
 
@@ -103,7 +107,7 @@
     <p id="stock-modal-item-name" class="selected-info active"></p>
     <form id="stock-modal-form" class="form-grid">
       <label>
-        날짜 <span class="required">*</span>
+        <span data-i18n="label_date">날짜</span> <span class="required">*</span>
         <div class="date-input" data-date-input="modal-date">
           <input type="text" inputmode="numeric" maxlength="4" class="date-yyyy" placeholder="YYYY">
           <span class="date-sep">-</span>
@@ -113,16 +117,16 @@
         </div>
       </label>
       <label>
-        수량 <span class="required">*</span>
+        <span data-i18n="label_qty">수량</span> <span class="required">*</span>
         <input type="number" id="modal-qty" min="1" step="1" required>
       </label>
       <label class="full">
-        수령자 <span class="required">*</span>
-        <input type="text" id="modal-recipient" placeholder="수령자 이름" required>
+        <span data-i18n="label_recipient">수령자</span> <span class="required">*</span>
+        <input type="text" id="modal-recipient" data-i18n-placeholder="placeholder_recipient" placeholder="수령자 이름" required>
       </label>
       <div class="form-actions between full">
-        <button type="button" id="stock-modal-cancel" class="secondary-btn">취소</button>
-        <button type="submit" id="stock-modal-submit">저장</button>
+        <button type="button" id="stock-modal-cancel" class="secondary-btn" data-i18n="cancel_btn">취소</button>
+        <button type="submit" id="stock-modal-submit" data-i18n="save_btn">저장</button>
       </div>
     </form>
   </div>
@@ -134,11 +138,11 @@
     <h3 id="history-modal-title">입출고 이력</h3>
     <div class="history-filter">
       <label>
-        연도
+        <span data-i18n="label_year">연도</span>
         <select id="history-year"></select>
       </label>
       <label>
-        월
+        <span data-i18n="label_month">월</span>
         <select id="history-month"></select>
       </label>
     </div>
@@ -146,18 +150,18 @@
       <table id="history-table">
         <thead>
           <tr>
-            <th>날짜</th>
-            <th>입고</th>
-            <th>출고</th>
-            <th>수령자</th>
+            <th data-i18n="label_date">날짜</th>
+            <th data-i18n="th_in_short">입고</th>
+            <th data-i18n="th_out_short">출고</th>
+            <th data-i18n="label_recipient">수령자</th>
           </tr>
         </thead>
         <tbody id="history-tbody"></tbody>
       </table>
     </div>
-    <p id="history-empty" class="empty-msg" hidden>입출고 이력이 없습니다.</p>
+    <p id="history-empty" class="empty-msg" hidden data-i18n="history_empty">입출고 이력이 없습니다.</p>
     <div class="form-actions full">
-      <button type="button" id="history-modal-close" class="secondary-btn">닫기</button>
+      <button type="button" id="history-modal-close" class="secondary-btn" data-i18n="close_btn">닫기</button>
     </div>
   </div>
 </div>

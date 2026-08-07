@@ -4,6 +4,120 @@
   const ITEMS_KEY = "osm.items";
   const MOVEMENTS_KEY = "osm.movements";
   const LEGACY_USAGES_KEY = "osm.usages";
+  const LANG_KEY = "osm.lang";
+
+  // ================= i18n =================
+  const TRANSLATIONS = {
+    ko: {
+      nav_list: "소모품 목록",
+      nav_stock: "입출고 관리",
+      register_h3: "소모품 등록",
+      register_hint: "여러 소모품을 한 번에 등록할 수 있습니다. 사진은 선택 사항입니다.",
+      th_photo: "사진",
+      th_name: "품목명",
+      th_unit: "단위",
+      th_note: "비고",
+      add_row_btn: "+ 행 추가",
+      bulk_save_btn: "일괄 등록",
+      list_query_h3: "등록된 소모품 조회",
+      search_placeholder: "품목명으로 검색...",
+      list_empty: "등록된 소모품이 없습니다.",
+      stock_empty: "등록된 소모품이 없습니다. 소모품 목록에서 먼저 등록해주세요.",
+      th_total_in: "총입고수량",
+      th_total_out: "총불출수량",
+      th_current: "현재고",
+      th_consumption: "월간 소비 사이클",
+      label_date: "날짜",
+      label_qty: "수량",
+      label_recipient: "수령자",
+      placeholder_recipient: "수령자 이름",
+      cancel_btn: "취소",
+      save_btn: "저장",
+      label_year: "연도",
+      label_month: "월",
+      th_in_short: "입고",
+      th_out_short: "출고",
+      history_empty: "입출고 이력이 없습니다.",
+      close_btn: "닫기",
+      delete_btn: "삭제",
+      in_btn: "입고",
+      out_btn: "출고",
+      history_btn: "이력",
+      modal_title_in: "입고 등록",
+      modal_title_out: "출고 등록",
+      unit_label: " / 단위: {unit}",
+      alert_need_name: "등록할 소모품의 품목명을 입력해주세요.",
+      alert_added_count: "{count}개의 소모품이 등록되었습니다.",
+      confirm_delete_item: "이 소모품을 삭제하시겠습니까? 관련 입출고 내역은 유지됩니다.",
+      alert_invalid_date: "날짜를 올바르게 입력해주세요. (예: 2026-08-07)",
+      alert_invalid_qty: "수량을 올바르게 입력해주세요.",
+      alert_need_recipient: "수령자를 입력해주세요.",
+      consumption_none: "이력 없음",
+      consumption_rate: "월 평균 소비량: 약 {avg}개",
+      consumption_warning: "⚠ 재고 부족",
+      consumption_ok: "재고 충분",
+      filter_all: "전체",
+      month_option: "{n}월",
+      history_title_suffix: "입출고 이력",
+    },
+    vi: {
+      nav_list: "Danh sách vật tư tiêu hao",
+      nav_stock: "Quản lý nhập xuất",
+      register_h3: "Đăng ký vật tư tiêu hao",
+      register_hint: "Bạn có thể đăng ký nhiều vật tư cùng một lúc. Ảnh là tùy chọn.",
+      th_photo: "Ảnh",
+      th_name: "Tên vật tư",
+      th_unit: "Đơn vị",
+      th_note: "Ghi chú",
+      add_row_btn: "+ Thêm dòng",
+      bulk_save_btn: "Đăng ký hàng loạt",
+      list_query_h3: "Xem vật tư đã đăng ký",
+      search_placeholder: "Tìm theo tên vật tư...",
+      list_empty: "Chưa có vật tư tiêu hao nào được đăng ký.",
+      stock_empty: "Chưa có vật tư nào. Vui lòng đăng ký vật tư trong Danh sách vật tư tiêu hao trước.",
+      th_total_in: "Tổng số lượng nhập",
+      th_total_out: "Tổng số lượng xuất",
+      th_current: "Tồn kho hiện tại",
+      th_consumption: "Chu kỳ tiêu thụ hàng tháng",
+      label_date: "Ngày",
+      label_qty: "Số lượng",
+      label_recipient: "Người nhận",
+      placeholder_recipient: "Tên người nhận",
+      cancel_btn: "Hủy",
+      save_btn: "Lưu",
+      label_year: "Năm",
+      label_month: "Tháng",
+      th_in_short: "Nhập",
+      th_out_short: "Xuất",
+      history_empty: "Không có lịch sử nhập xuất.",
+      close_btn: "Đóng",
+      delete_btn: "Xóa",
+      in_btn: "Nhập",
+      out_btn: "Xuất",
+      history_btn: "Lịch sử",
+      modal_title_in: "Đăng ký nhập kho",
+      modal_title_out: "Đăng ký xuất kho",
+      unit_label: " / Đơn vị: {unit}",
+      alert_need_name: "Vui lòng nhập tên vật tư cần đăng ký.",
+      alert_added_count: "Đã đăng ký {count} vật tư.",
+      confirm_delete_item: "Bạn có muốn xóa vật tư này không? Lịch sử nhập xuất liên quan vẫn được giữ lại.",
+      alert_invalid_date: "Vui lòng nhập ngày hợp lệ. (Ví dụ: 2026-08-07)",
+      alert_invalid_qty: "Vui lòng nhập số lượng hợp lệ.",
+      alert_need_recipient: "Vui lòng nhập tên người nhận.",
+      consumption_none: "Chưa có lịch sử",
+      consumption_rate: "Tiêu thụ TB/tháng: khoảng {avg}",
+      consumption_warning: "⚠ Thiếu tồn kho",
+      consumption_ok: "Đủ tồn kho",
+      filter_all: "Tất cả",
+      month_option: "Tháng {n}",
+      history_title_suffix: "Lịch sử nhập xuất",
+    },
+  };
+
+  function loadLang() {
+    const saved = localStorage.getItem(LANG_KEY);
+    return saved === "vi" || saved === "ko" ? saved : "ko";
+  }
 
   const state = {
     items: loadItems(),
@@ -13,7 +127,18 @@
     modalItemId: null,
     modalType: "입고",
     historyItemId: null,
+    lang: loadLang(),
   };
+
+  function t(key, vars) {
+    let str = TRANSLATIONS[state.lang][key] ?? TRANSLATIONS.ko[key] ?? key;
+    if (vars) {
+      Object.keys(vars).forEach((k) => {
+        str = str.replace(`{${k}}`, vars[k]);
+      });
+    }
+    return str;
+  }
 
   // ---------- storage ----------
   function loadItems() {
@@ -85,6 +210,59 @@
       document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
       btn.classList.add("active");
       document.getElementById(`view-${btn.dataset.view}`).classList.add("active");
+    });
+  });
+
+  // ================= Language switcher =================
+  const langButtons = document.querySelectorAll(".lang-btn");
+
+  function applyLanguage() {
+    document.documentElement.lang = state.lang;
+
+    document.querySelectorAll("[data-i18n]").forEach((el) => {
+      el.textContent = t(el.dataset.i18n);
+    });
+    document.querySelectorAll("[data-i18n-placeholder]").forEach((el) => {
+      el.placeholder = t(el.dataset.i18nPlaceholder);
+    });
+
+    langButtons.forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.lang === state.lang);
+    });
+
+    // re-render dynamically generated content in the new language, without
+    // losing in-progress bulk-registration input or photos
+    applyBulkRowPlaceholders();
+    renderListItems();
+    renderStockItems();
+
+    if (!modalOverlay.hidden) {
+      modalTitle.textContent = state.modalType === "입고" ? t("modal_title_in") : t("modal_title_out");
+      const item = state.items.find((it) => it.id === state.modalItemId);
+      if (item) {
+        modalItemName.textContent = `${item.name}${item.unit ? t("unit_label", { unit: item.unit }) : ""}`;
+      }
+    }
+
+    const prevYear = historyYearSelect.value;
+    const prevMonth = historyMonthSelect.value;
+    populateHistoryFilters();
+    historyYearSelect.value = prevYear;
+    historyMonthSelect.value = prevMonth;
+
+    if (!historyModalOverlay.hidden && state.historyItemId) {
+      const item = state.items.find((it) => it.id === state.historyItemId);
+      if (item) historyModalTitle.textContent = `${item.name} ${t("history_title_suffix")}`;
+      renderHistoryTable();
+    }
+  }
+
+  langButtons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (btn.dataset.lang === state.lang) return;
+      state.lang = btn.dataset.lang;
+      localStorage.setItem(LANG_KEY, state.lang);
+      applyLanguage();
     });
   });
 
@@ -170,6 +348,13 @@
   let bulkRowSeq = 0;
   const bulkPhotos = new Map(); // rowId -> dataURL
 
+  function applyBulkRowPlaceholders() {
+    bulkTbody.querySelectorAll(".bulk-name").forEach((el) => (el.placeholder = t("th_name")));
+    bulkTbody.querySelectorAll(".bulk-unit").forEach((el) => (el.placeholder = t("th_unit")));
+    bulkTbody.querySelectorAll(".bulk-note").forEach((el) => (el.placeholder = t("th_note")));
+    bulkTbody.querySelectorAll(".bulk-row-delete").forEach((el) => (el.textContent = t("delete_btn")));
+  }
+
   function addBulkRow() {
     const rowId = `row-${++bulkRowSeq}`;
     bulkPhotos.set(rowId, "");
@@ -181,10 +366,10 @@
         <input type="file" accept="image/*" class="photo-input" data-row-id="${rowId}">
         <img class="photo-preview" data-row-id="${rowId}" hidden alt="">
       </td>
-      <td><input type="text" class="bulk-name" placeholder="품목명"></td>
-      <td><input type="text" class="bulk-unit" placeholder="단위"></td>
-      <td><input type="text" class="bulk-note" placeholder="비고"></td>
-      <td><button type="button" class="delete-btn bulk-row-delete">삭제</button></td>
+      <td><input type="text" class="bulk-name" placeholder="${t("th_name")}"></td>
+      <td><input type="text" class="bulk-unit" placeholder="${t("th_unit")}"></td>
+      <td><input type="text" class="bulk-note" placeholder="${t("th_note")}"></td>
+      <td><button type="button" class="delete-btn bulk-row-delete">${t("delete_btn")}</button></td>
     `;
     bulkTbody.appendChild(tr);
 
@@ -235,7 +420,7 @@
     });
 
     if (addedCount === 0) {
-      alert("등록할 소모품의 품목명을 입력해주세요.");
+      alert(t("alert_need_name"));
       return;
     }
 
@@ -243,7 +428,7 @@
     resetBulkRows();
     renderListItems();
     renderStockItems();
-    alert(`${addedCount}개의 소모품이 등록되었습니다.`);
+    alert(t("alert_added_count", { count: addedCount }));
   });
 
   resetBulkRows();
@@ -274,7 +459,7 @@
         <td>${escapeHtml(item.name)}</td>
         <td>${escapeHtml(item.unit)}</td>
         <td>${escapeHtml(item.note)}</td>
-        <td><button type="button" class="delete-btn" data-id="${item.id}">삭제</button></td>
+        <td><button type="button" class="delete-btn" data-id="${item.id}">${t("delete_btn")}</button></td>
       `;
       listTbody.appendChild(tr);
     });
@@ -287,7 +472,7 @@
   }
 
   function deleteItem(id) {
-    if (!confirm("이 소모품을 삭제하시겠습니까? 관련 입출고 내역은 유지됩니다.")) return;
+    if (!confirm(t("confirm_delete_item"))) return;
     state.items = state.items.filter((it) => it.id !== id);
     saveItems();
     renderListItems();
@@ -333,17 +518,17 @@
   function consumptionCycleHtml(itemId, currentStock) {
     const consumption = getMonthlyConsumption(itemId);
     if (!consumption) {
-      return `<span class="consumption-none">이력 없음</span>`;
+      return `<span class="consumption-none">${t("consumption_none")}</span>`;
     }
 
     const avg = consumption.avgPerMonth;
     const isShort = currentStock < avg;
     const badge = isShort
-      ? `<span class="consumption-warning">⚠ 재고 부족</span>`
-      : `<span class="consumption-ok">재고 충분</span>`;
+      ? `<span class="consumption-warning">${t("consumption_warning")}</span>`
+      : `<span class="consumption-ok">${t("consumption_ok")}</span>`;
 
     return `
-      <div class="consumption-rate">월 평균 소비량: 약 ${avg.toFixed(1)}개</div>
+      <div class="consumption-rate">${t("consumption_rate", { avg: avg.toFixed(1) })}</div>
       ${badge}
     `;
   }
@@ -364,9 +549,9 @@
         <td class="current-stock ${current < 0 ? "negative" : ""}">${current}</td>
         <td>
           <div class="stock-actions">
-            <button type="button" class="stock-in-btn" data-id="${item.id}" data-type="입고">입고</button>
-            <button type="button" class="stock-out-btn" data-id="${item.id}" data-type="출고">출고</button>
-            <button type="button" class="stock-history-btn" data-id="${item.id}">이력</button>
+            <button type="button" class="stock-in-btn" data-id="${item.id}" data-type="입고">${t("in_btn")}</button>
+            <button type="button" class="stock-out-btn" data-id="${item.id}" data-type="출고">${t("out_btn")}</button>
+            <button type="button" class="stock-history-btn" data-id="${item.id}">${t("history_btn")}</button>
           </div>
         </td>
         <td class="consumption-cycle">${consumptionCycleHtml(item.id, current)}</td>
@@ -403,8 +588,8 @@
     state.modalItemId = itemId;
     state.modalType = type;
 
-    modalTitle.textContent = type === "입고" ? "입고 등록" : "출고 등록";
-    modalItemName.textContent = `${item.name}${item.unit ? ` / 단위: ${item.unit}` : ""}`;
+    modalTitle.textContent = type === "입고" ? t("modal_title_in") : t("modal_title_out");
+    modalItemName.textContent = `${item.name}${item.unit ? t("unit_label", { unit: item.unit }) : ""}`;
     modalQtyInput.value = "";
     modalRecipientInput.value = "";
     setDateValue(modalDateFields, new Date().toISOString().slice(0, 10));
@@ -430,19 +615,19 @@
 
     const date = getDateValue(modalDateFields);
     if (!date) {
-      alert("날짜를 올바르게 입력해주세요. (예: 2026-08-07)");
+      alert(t("alert_invalid_date"));
       return;
     }
 
     const qty = Number(modalQtyInput.value);
     if (!qty || qty <= 0) {
-      alert("수량을 올바르게 입력해주세요.");
+      alert(t("alert_invalid_qty"));
       return;
     }
 
     const recipient = modalRecipientInput.value.trim();
     if (!recipient) {
-      alert("수령자를 입력해주세요.");
+      alert(t("alert_need_recipient"));
       return;
     }
 
@@ -479,15 +664,15 @@
     const currentYear = new Date().getFullYear();
     const lastYear = Math.max(currentYear + 5, HISTORY_START_YEAR);
 
-    historyYearSelect.innerHTML = `<option value="">전체</option>`;
+    historyYearSelect.innerHTML = `<option value="">${t("filter_all")}</option>`;
     for (let y = HISTORY_START_YEAR; y <= lastYear; y++) {
-      historyYearSelect.insertAdjacentHTML("beforeend", `<option value="${y}">${y}년</option>`);
+      historyYearSelect.insertAdjacentHTML("beforeend", `<option value="${y}">${y}</option>`);
     }
 
-    historyMonthSelect.innerHTML = `<option value="">전체</option>`;
+    historyMonthSelect.innerHTML = `<option value="">${t("filter_all")}</option>`;
     for (let m = 1; m <= 12; m++) {
       const mm = String(m).padStart(2, "0");
-      historyMonthSelect.insertAdjacentHTML("beforeend", `<option value="${mm}">${m}월</option>`);
+      historyMonthSelect.insertAdjacentHTML("beforeend", `<option value="${mm}">${t("month_option", { n: m })}</option>`);
     }
   }
 
@@ -498,7 +683,7 @@
     if (!item) return;
 
     state.historyItemId = itemId;
-    historyModalTitle.textContent = `${item.name} 입출고 이력`;
+    historyModalTitle.textContent = `${item.name} ${t("history_title_suffix")}`;
     historyYearSelect.value = "";
     historyMonthSelect.value = "";
 
@@ -573,6 +758,5 @@
   });
 
   // ================= init =================
-  renderListItems();
-  renderStockItems();
+  applyLanguage();
 })();

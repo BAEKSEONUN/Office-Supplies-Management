@@ -49,6 +49,34 @@ body {
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
+.lang-switch {
+  display: flex;
+  gap: 0.4rem;
+  padding: 0.75rem 0.75rem 0;
+}
+
+.lang-btn {
+  flex: 1;
+  background: transparent;
+  color: var(--sidebar-text);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 0.4rem 0.3rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border-radius: 6px;
+}
+
+.lang-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.lang-btn.active {
+  background: var(--sidebar-active-bg);
+  border-color: var(--sidebar-active-bg);
+  color: #fff;
+}
+
 .sidebar-nav {
   display: flex;
   flex-direction: column;
