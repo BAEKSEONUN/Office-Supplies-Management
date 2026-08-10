@@ -176,6 +176,15 @@
     <h3 data-i18n="connect_title">데이터 파일 연결</h3>
     <p data-i18n="connect_desc">공유 폴더에 있는 데이터 파일을 선택하면, 같은 파일을 연결한 모든 사람과 소모품·입출고 내용이 함께 공유됩니다.</p>
     <p id="connect-unsupported" class="empty-msg" hidden data-i18n="connect_unsupported">이 브라우저는 지원되지 않습니다. Chrome 또는 Edge 최신 버전으로 열어주세요.</p>
+
+    <div id="reconnect-section" hidden>
+      <p id="reconnect-desc" data-i18n="reconnect_desc">이전에 연결했던 파일이 있습니다. 다시 연결하면 파일을 새로 찾지 않아도 됩니다.</p>
+      <div class="form-actions between full">
+        <button type="button" id="reconnect-btn" data-i18n="reconnect_btn">다시 연결</button>
+        <button type="button" id="reconnect-pick-other-btn" class="secondary-btn" data-i18n="reconnect_pick_other_btn">다른 파일 선택</button>
+      </div>
+    </div>
+
     <div id="connect-actions" class="form-actions between full">
       <button type="button" id="connect-open-btn" class="secondary-btn" data-i18n="connect_open_btn">기존 파일 열기</button>
       <button type="button" id="connect-create-btn" data-i18n="connect_create_btn">새 파일 만들기</button>

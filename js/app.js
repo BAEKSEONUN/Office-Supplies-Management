@@ -140,9 +140,26 @@
     fileChangeBtn.hidden = !fileHandle;
   }
 
-  function showConnectModal() {
+  const reconnectSection = document.getElementById("reconnect-section");
+  const reconnectBtn = document.getElementById("reconnect-btn");
+  const reconnectPickOtherBtn = document.getElementById("reconnect-pick-other-btn");
+  let pendingReconnectHandle = null;
+
+  // pass a previously-saved handle to offer a one-click "재연결" instead of
+  // making the user browse to the shared file again every time they reopen
+  function showConnectModal(reconnectHandle) {
     connectUnsupportedMsg.hidden = FS_SUPPORTED;
-    connectActions.hidden = !FS_SUPPORTED;
+
+    if (reconnectHandle && FS_SUPPORTED) {
+      pendingReconnectHandle = reconnectHandle;
+      reconnectSection.hidden = false;
+      connectActions.hidden = true;
+    } else {
+      pendingReconnectHandle = null;
+      reconnectSection.hidden = true;
+      connectActions.hidden = !FS_SUPPORTED;
+    }
+
     connectModalOverlay.hidden = false;
   }
 
@@ -200,6 +217,22 @@
       }
     }
   });
+
+  reconnectBtn.addEventListener("click", async () => {
+    if (!pendingReconnectHandle) return;
+    try {
+      if (!(await ensureReadWritePermission(pendingReconnectHandle))) {
+        alert(t("alert_permission_denied"));
+        return;
+      }
+      await finishConnect(pendingReconnectHandle);
+    } catch (err) {
+      console.error(err);
+      alert(t("alert_file_pick_failed"));
+    }
+  });
+
+  reconnectPickOtherBtn.addEventListener("click", () => showConnectModal());
 
   fileChangeBtn.addEventListener("click", () => {
     if (pollTimer) clearInterval(pollTimer);
@@ -272,6 +305,9 @@
       file_change_btn: "변경",
       alert_permission_denied: "데이터 파일에 대한 접근 권한이 거부되었습니다.",
       alert_file_pick_failed: "데이터 파일을 열지 못했습니다.",
+      reconnect_desc: "이전에 연결했던 파일이 있습니다. 다시 연결하면 파일을 새로 찾지 않아도 됩니다.",
+      reconnect_btn: "다시 연결",
+      reconnect_pick_other_btn: "다른 파일 선택",
     },
     vi: {
       nav_list: "Danh sách vật tư tiêu hao",
@@ -335,6 +371,9 @@
       file_change_btn: "Đổi",
       alert_permission_denied: "Quyền truy cập tệp dữ liệu đã bị từ chối.",
       alert_file_pick_failed: "Không thể mở tệp dữ liệu.",
+      reconnect_desc: "Đã có tệp từng được kết nối trước đó. Kết nối lại để không phải tìm tệp lại từ đầu.",
+      reconnect_btn: "Kết nối lại",
+      reconnect_pick_other_btn: "Chọn tệp khác",
     },
   };
 
@@ -974,13 +1013,21 @@
 
     try {
       const savedHandle = await idbGet(IDB_KEY);
-      if (savedHandle && (await ensureReadWritePermission(savedHandle))) {
-        fileHandle = savedHandle;
-        await loadAllFromDisk();
-        updateFileStatusUI();
-        renderListItems();
-        renderStockItems();
-        startPolling();
+      if (savedHandle) {
+        // queryPermission never prompts, so it's safe to call outside a
+        // click handler. requestPermission needs a user gesture, so it can
+        // only run once the reconnect button is actually clicked below.
+        const already = await savedHandle.queryPermission({ mode: "readwrite" });
+        if (already === "granted") {
+          fileHandle = savedHandle;
+          await loadAllFromDisk();
+          updateFileStatusUI();
+          renderListItems();
+          renderStockItems();
+          startPolling();
+          return;
+        }
+        showConnectModal(savedHandle);
         return;
       }
     } catch (err) {
