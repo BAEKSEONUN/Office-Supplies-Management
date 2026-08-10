@@ -18,6 +18,10 @@
       <button type="button" class="nav-btn active" data-view="list" data-i18n="nav_list">소모품 목록</button>
       <button type="button" class="nav-btn" data-view="stock" data-i18n="nav_stock">입출고 관리</button>
     </nav>
+    <div class="file-status">
+      <span id="file-status-text">데이터 파일 연결 안 됨</span>
+      <button type="button" id="file-change-btn" class="secondary-btn" data-i18n="file_change_btn">변경</button>
+    </div>
   </aside>
 
   <main class="content">
@@ -162,6 +166,19 @@
     <p id="history-empty" class="empty-msg" hidden data-i18n="history_empty">입출고 이력이 없습니다.</p>
     <div class="form-actions full">
       <button type="button" id="history-modal-close" class="secondary-btn" data-i18n="close_btn">닫기</button>
+    </div>
+  </div>
+</div>
+
+<!-- 데이터 파일 연결 모달 -->
+<div id="connect-modal-overlay" class="modal-overlay" hidden>
+  <div class="modal-box connect-modal-box">
+    <h3 data-i18n="connect_title">데이터 파일 연결</h3>
+    <p data-i18n="connect_desc">공유 폴더에 있는 데이터 파일을 선택하면, 같은 파일을 연결한 모든 사람과 소모품·입출고 내용이 함께 공유됩니다.</p>
+    <p id="connect-unsupported" class="empty-msg" hidden data-i18n="connect_unsupported">이 브라우저는 지원되지 않습니다. Chrome 또는 Edge 최신 버전으로 열어주세요.</p>
+    <div id="connect-actions" class="form-actions between full">
+      <button type="button" id="connect-open-btn" class="secondary-btn" data-i18n="connect_open_btn">기존 파일 열기</button>
+      <button type="button" id="connect-create-btn" data-i18n="connect_create_btn">새 파일 만들기</button>
     </div>
   </div>
 </div>

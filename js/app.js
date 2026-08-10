@@ -1,30 +1,212 @@
 (() => {
   "use strict";
 
-  const LANG_KEY = "osm.lang"; // per-browser UI preference only; items/movements live on the server
+  const LANG_KEY = "osm.lang"; // per-browser UI preference only; items/movements live in the shared data file
 
-  // ================= backend API =================
-  async function apiGet(path) {
-    const res = await fetch(path);
-    if (!res.ok) throw new Error(`GET ${path} failed: ${res.status}`);
-    return res.json();
-  }
+  // ================= shared data file (File System Access API) =================
+  // No backend server: every browser reads/writes the SAME JSON file located
+  // on the office's always-on shared network folder. Everyone who connects
+  // to that file sees everyone else's changes (refreshed by polling below).
+  const FS_SUPPORTED = typeof window.showOpenFilePicker === "function";
+  const IDB_NAME = "qlvpp-fs";
+  const IDB_STORE = "handles";
+  const IDB_KEY = "dataFileHandle";
+  const POLL_INTERVAL_MS = 5000;
 
-  async function apiPost(path, body) {
-    const res = await fetch(path, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+  let fileHandle = null;
+  let lastSeenModified = 0;
+  let pollTimer = null;
+
+  function idbOpen() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(IDB_NAME, 1);
+      req.onupgradeneeded = () => req.result.createObjectStore(IDB_STORE);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
     });
-    if (!res.ok) throw new Error(`POST ${path} failed: ${res.status}`);
-    return res.json();
   }
 
-  async function apiDelete(path) {
-    const res = await fetch(path, { method: "DELETE" });
-    if (!res.ok) throw new Error(`DELETE ${path} failed: ${res.status}`);
-    return res.json();
+  async function idbGet(key) {
+    const db = await idbOpen();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, "readonly");
+      const req = tx.objectStore(IDB_STORE).get(key);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    });
   }
+
+  async function idbSet(key, value) {
+    const db = await idbOpen();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, "readwrite");
+      tx.objectStore(IDB_STORE).put(value, key);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  async function ensureReadWritePermission(handle) {
+    const opts = { mode: "readwrite" };
+    if ((await handle.queryPermission(opts)) === "granted") return true;
+    return (await handle.requestPermission(opts)) === "granted";
+  }
+
+  async function readDataFile() {
+    const file = await fileHandle.getFile();
+    lastSeenModified = file.lastModified;
+    const text = await file.text();
+    if (!text.trim()) return { items: [], movements: [] };
+    try {
+      const parsed = JSON.parse(text);
+      return { items: parsed.items || [], movements: parsed.movements || [] };
+    } catch {
+      return { items: [], movements: [] };
+    }
+  }
+
+  async function writeDataFile(data) {
+    const writable = await fileHandle.createWritable();
+    await writable.write(JSON.stringify(data, null, 2));
+    await writable.close();
+    const file = await fileHandle.getFile();
+    lastSeenModified = file.lastModified;
+  }
+
+  async function addItemsBulk(entries) {
+    const data = await readDataFile();
+    const created = entries.map((entry) => ({
+      id: crypto.randomUUID(),
+      name: entry.name,
+      unit: entry.unit || "",
+      note: entry.note || "",
+      photo: entry.photo || "",
+    }));
+    data.items.push(...created);
+    await writeDataFile(data);
+    return created;
+  }
+
+  async function deleteItemOnDisk(id) {
+    const data = await readDataFile();
+    data.items = data.items.filter((it) => it.id !== id);
+    await writeDataFile(data);
+  }
+
+  async function addMovementOnDisk(payload) {
+    const data = await readDataFile();
+    const movement = { id: crypto.randomUUID(), ...payload };
+    data.movements.unshift(movement);
+    await writeDataFile(data);
+    return movement;
+  }
+
+  async function loadAllFromDisk() {
+    const data = await readDataFile();
+    state.items = data.items;
+    state.movements = data.movements;
+  }
+
+  function startPolling() {
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = setInterval(async () => {
+      if (!fileHandle) return;
+      try {
+        const file = await fileHandle.getFile();
+        if (file.lastModified === lastSeenModified) return; // no external change
+        await loadAllFromDisk();
+        renderListItems();
+        renderStockItems();
+        if (!historyModalOverlay.hidden) renderHistoryTable();
+      } catch (err) {
+        console.error("poll failed", err);
+      }
+    }, POLL_INTERVAL_MS);
+  }
+
+  // ---------- connect-file UI ----------
+  const connectModalOverlay = document.getElementById("connect-modal-overlay");
+  const connectUnsupportedMsg = document.getElementById("connect-unsupported");
+  const connectActions = document.getElementById("connect-actions");
+  const connectOpenBtn = document.getElementById("connect-open-btn");
+  const connectCreateBtn = document.getElementById("connect-create-btn");
+  const fileStatusText = document.getElementById("file-status-text");
+  const fileChangeBtn = document.getElementById("file-change-btn");
+
+  function updateFileStatusUI() {
+    fileStatusText.textContent = fileHandle
+      ? t("file_status_connected", { name: fileHandle.name })
+      : t("file_status_disconnected");
+    fileChangeBtn.hidden = !fileHandle;
+  }
+
+  function showConnectModal() {
+    connectUnsupportedMsg.hidden = FS_SUPPORTED;
+    connectActions.hidden = !FS_SUPPORTED;
+    connectModalOverlay.hidden = false;
+  }
+
+  function hideConnectModal() {
+    connectModalOverlay.hidden = true;
+  }
+
+  async function finishConnect(handle) {
+    fileHandle = handle;
+    await idbSet(IDB_KEY, handle);
+    await loadAllFromDisk();
+    updateFileStatusUI();
+    hideConnectModal();
+    renderListItems();
+    renderStockItems();
+    startPolling();
+  }
+
+  connectOpenBtn.addEventListener("click", async () => {
+    try {
+      const [handle] = await window.showOpenFilePicker({
+        types: [{ description: "QL VPP data", accept: { "application/json": [".json"] } }],
+        excludeAcceptAllOption: false,
+      });
+      if (!(await ensureReadWritePermission(handle))) {
+        alert(t("alert_permission_denied"));
+        return;
+      }
+      await finishConnect(handle);
+    } catch (err) {
+      if (err.name !== "AbortError") {
+        console.error(err);
+        alert(t("alert_file_pick_failed"));
+      }
+    }
+  });
+
+  connectCreateBtn.addEventListener("click", async () => {
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: "qlvpp-data.json",
+        types: [{ description: "QL VPP data", accept: { "application/json": [".json"] } }],
+      });
+      if (!(await ensureReadWritePermission(handle))) {
+        alert(t("alert_permission_denied"));
+        return;
+      }
+      fileHandle = handle;
+      await writeDataFile({ items: [], movements: [] });
+      await finishConnect(handle);
+    } catch (err) {
+      if (err.name !== "AbortError") {
+        console.error(err);
+        alert(t("alert_file_pick_failed"));
+      }
+    }
+  });
+
+  fileChangeBtn.addEventListener("click", () => {
+    if (pollTimer) clearInterval(pollTimer);
+    fileHandle = null;
+    updateFileStatusUI();
+    showConnectModal();
+  });
 
   // ================= i18n =================
   const TRANSLATIONS = {
@@ -79,7 +261,17 @@
       filter_all: "전체",
       month_option: "{n}월",
       history_title_suffix: "입출고 이력",
-      alert_server_error: "서버와 통신 중 오류가 발생했습니다. 네트워크 연결을 확인해주세요.",
+      alert_server_error: "데이터 파일과 통신 중 오류가 발생했습니다. 연결 상태를 확인해주세요.",
+      connect_title: "데이터 파일 연결",
+      connect_desc: "공유 폴더에 있는 데이터 파일을 선택하면, 같은 파일을 연결한 모든 사람과 소모품·입출고 내용이 함께 공유됩니다.",
+      connect_unsupported: "이 브라우저는 지원되지 않습니다. Chrome 또는 Edge 최신 버전으로 열어주세요.",
+      connect_open_btn: "기존 파일 열기",
+      connect_create_btn: "새 파일 만들기",
+      file_status_connected: "연결됨: {name}",
+      file_status_disconnected: "데이터 파일 연결 안 됨",
+      file_change_btn: "변경",
+      alert_permission_denied: "데이터 파일에 대한 접근 권한이 거부되었습니다.",
+      alert_file_pick_failed: "데이터 파일을 열지 못했습니다.",
     },
     vi: {
       nav_list: "Danh sách vật tư tiêu hao",
@@ -132,7 +324,17 @@
       filter_all: "Tất cả",
       month_option: "Tháng {n}",
       history_title_suffix: "Lịch sử nhập xuất",
-      alert_server_error: "Đã xảy ra lỗi khi kết nối với máy chủ. Vui lòng kiểm tra kết nối mạng.",
+      alert_server_error: "Đã xảy ra lỗi khi kết nối với tệp dữ liệu. Vui lòng kiểm tra kết nối.",
+      connect_title: "Kết nối tệp dữ liệu",
+      connect_desc: "Chọn tệp dữ liệu trong thư mục dùng chung để chia sẻ vật tư và lịch sử nhập xuất với mọi người đã kết nối cùng tệp.",
+      connect_unsupported: "Trình duyệt này không được hỗ trợ. Vui lòng mở bằng Chrome hoặc Edge phiên bản mới nhất.",
+      connect_open_btn: "Mở tệp có sẵn",
+      connect_create_btn: "Tạo tệp mới",
+      file_status_connected: "Đã kết nối: {name}",
+      file_status_disconnected: "Chưa kết nối tệp dữ liệu",
+      file_change_btn: "Đổi",
+      alert_permission_denied: "Quyền truy cập tệp dữ liệu đã bị từ chối.",
+      alert_file_pick_failed: "Không thể mở tệp dữ liệu.",
     },
   };
 
@@ -207,6 +409,7 @@
     applyBulkRowPlaceholders();
     renderListItems();
     renderStockItems();
+    updateFileStatusUI();
 
     if (!modalOverlay.hidden) {
       modalTitle.textContent = state.modalType === "입고" ? t("modal_title_in") : t("modal_title_out");
@@ -393,9 +596,14 @@
       return;
     }
 
+    if (!fileHandle) {
+      showConnectModal();
+      return;
+    }
+
     bulkSaveBtn.disabled = true;
     try {
-      const created = await apiPost("/api/items/bulk", payload);
+      const created = await addItemsBulk(payload);
       state.items.push(...created);
       resetBulkRows();
       renderListItems();
@@ -450,9 +658,13 @@
   }
 
   async function deleteItem(id) {
+    if (!fileHandle) {
+      showConnectModal();
+      return;
+    }
     if (!confirm(t("confirm_delete_item"))) return;
     try {
-      await apiDelete(`/api/items/${encodeURIComponent(id)}`);
+      await deleteItemOnDisk(id);
       state.items = state.items.filter((it) => it.id !== id);
       renderListItems();
       renderStockItems();
@@ -565,6 +777,10 @@
   const modalDateFields = initDateInput(modalDateContainer);
 
   function openStockModal(itemId, type) {
+    if (!fileHandle) {
+      showConnectModal();
+      return;
+    }
     const item = state.items.find((it) => it.id === itemId);
     if (!item) return;
 
@@ -627,7 +843,7 @@
     const submitBtn = document.getElementById("stock-modal-submit");
     submitBtn.disabled = true;
     try {
-      const movement = await apiPost("/api/movements", payload);
+      const movement = await addMovementOnDisk(payload);
       state.movements.unshift(movement);
       closeStockModal();
       renderStockItems();
@@ -749,15 +965,29 @@
 
   // ================= init =================
   async function init() {
+    applyLanguage(); // paint static UI immediately, before any file access
+
+    if (!FS_SUPPORTED) {
+      showConnectModal();
+      return;
+    }
+
     try {
-      const [items, movements] = await Promise.all([apiGet("/api/items"), apiGet("/api/movements")]);
-      state.items = items;
-      state.movements = movements;
+      const savedHandle = await idbGet(IDB_KEY);
+      if (savedHandle && (await ensureReadWritePermission(savedHandle))) {
+        fileHandle = savedHandle;
+        await loadAllFromDisk();
+        updateFileStatusUI();
+        renderListItems();
+        renderStockItems();
+        startPolling();
+        return;
+      }
     } catch (err) {
       console.error(err);
-      alert(t("alert_server_error"));
     }
-    applyLanguage();
+
+    showConnectModal();
   }
 
   init();
