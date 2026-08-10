@@ -133,10 +133,21 @@
   const fileStatusText = document.getElementById("file-status-text");
   const fileChangeBtn = document.getElementById("file-change-btn");
 
+  // A handle restored from IndexedDB whose permission needs to be
+  // re-confirmed. Browsers only allow that confirmation to happen inside a
+  // real user gesture (click/tap), so instead of forcing a dedicated
+  // "재연결" click, we quietly reuse the user's very next click anywhere in
+  // the app to do it — see armAutoReconnect().
+  let pendingSavedHandle = null;
+
   function updateFileStatusUI() {
-    fileStatusText.textContent = fileHandle
-      ? t("file_status_connected", { name: fileHandle.name })
-      : t("file_status_disconnected");
+    if (fileHandle) {
+      fileStatusText.textContent = t("file_status_connected", { name: fileHandle.name });
+    } else if (pendingSavedHandle) {
+      fileStatusText.textContent = t("file_status_reconnecting");
+    } else {
+      fileStatusText.textContent = t("file_status_disconnected");
+    }
     fileChangeBtn.hidden = !fileHandle;
   }
 
@@ -168,6 +179,7 @@
   }
 
   async function finishConnect(handle) {
+    pendingSavedHandle = null;
     fileHandle = handle;
     await idbSet(IDB_KEY, handle);
     await loadAllFromDisk();
@@ -176,6 +188,48 @@
     renderListItems();
     renderStockItems();
     startPolling();
+  }
+
+  // Silently retries the saved handle's permission using the user's next
+  // click anywhere on the page as the required gesture, so reconnecting
+  // after reopening the browser normally needs no dedicated button at all.
+  function armAutoReconnect() {
+    const attempt = async () => {
+      if (fileHandle || !pendingSavedHandle) return;
+      const handle = pendingSavedHandle;
+      try {
+        if (await ensureReadWritePermission(handle)) {
+          await finishConnect(handle);
+          return;
+        }
+      } catch (err) {
+        console.error(err);
+      }
+      // the quiet attempt genuinely failed (e.g. permission denied, file
+      // moved/deleted) -- fall back to the explicit reconnect prompt
+      showConnectModal(handle);
+    };
+    document.addEventListener("pointerdown", attempt, { capture: true, once: true });
+  }
+
+  // Used by actions that require a connected file: if a saved handle is
+  // still waiting on permission, this click is used to grant it on the
+  // spot instead of bouncing the user to the connect modal.
+  async function ensureConnectedOrPrompt() {
+    if (fileHandle) return true;
+    if (pendingSavedHandle) {
+      const handle = pendingSavedHandle;
+      try {
+        if (await ensureReadWritePermission(handle)) {
+          await finishConnect(handle);
+          return true;
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+    showConnectModal(pendingSavedHandle || undefined);
+    return false;
   }
 
   connectOpenBtn.addEventListener("click", async () => {
@@ -302,6 +356,7 @@
       connect_create_btn: "새 파일 만들기",
       file_status_connected: "연결됨: {name}",
       file_status_disconnected: "데이터 파일 연결 안 됨",
+      file_status_reconnecting: "재연결 대기 중 (화면을 클릭하면 자동 연결)",
       file_change_btn: "변경",
       alert_permission_denied: "데이터 파일에 대한 접근 권한이 거부되었습니다.",
       alert_file_pick_failed: "데이터 파일을 열지 못했습니다.",
@@ -368,6 +423,7 @@
       connect_create_btn: "Tạo tệp mới",
       file_status_connected: "Đã kết nối: {name}",
       file_status_disconnected: "Chưa kết nối tệp dữ liệu",
+      file_status_reconnecting: "Đang chờ kết nối lại (nhấn vào màn hình để tự động kết nối)",
       file_change_btn: "Đổi",
       alert_permission_denied: "Quyền truy cập tệp dữ liệu đã bị từ chối.",
       alert_file_pick_failed: "Không thể mở tệp dữ liệu.",
@@ -635,10 +691,7 @@
       return;
     }
 
-    if (!fileHandle) {
-      showConnectModal();
-      return;
-    }
+    if (!(await ensureConnectedOrPrompt())) return;
 
     bulkSaveBtn.disabled = true;
     try {
@@ -697,10 +750,7 @@
   }
 
   async function deleteItem(id) {
-    if (!fileHandle) {
-      showConnectModal();
-      return;
-    }
+    if (!(await ensureConnectedOrPrompt())) return;
     if (!confirm(t("confirm_delete_item"))) return;
     try {
       await deleteItemOnDisk(id);
@@ -815,11 +865,8 @@
   const modalDateContainer = document.querySelector('[data-date-input="modal-date"]');
   const modalDateFields = initDateInput(modalDateContainer);
 
-  function openStockModal(itemId, type) {
-    if (!fileHandle) {
-      showConnectModal();
-      return;
-    }
+  async function openStockModal(itemId, type) {
+    if (!(await ensureConnectedOrPrompt())) return;
     const item = state.items.find((it) => it.id === itemId);
     if (!item) return;
 
@@ -1015,8 +1062,9 @@
       const savedHandle = await idbGet(IDB_KEY);
       if (savedHandle) {
         // queryPermission never prompts, so it's safe to call outside a
-        // click handler. requestPermission needs a user gesture, so it can
-        // only run once the reconnect button is actually clicked below.
+        // click handler. requestPermission needs a real user gesture, so
+        // it's deferred to the user's next click anywhere in the app
+        // (armAutoReconnect) instead of forcing a dedicated button here.
         const already = await savedHandle.queryPermission({ mode: "readwrite" });
         if (already === "granted") {
           fileHandle = savedHandle;
@@ -1027,7 +1075,9 @@
           startPolling();
           return;
         }
-        showConnectModal(savedHandle);
+        pendingSavedHandle = savedHandle;
+        updateFileStatusUI();
+        armAutoReconnect();
         return;
       }
     } catch (err) {
