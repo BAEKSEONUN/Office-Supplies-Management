@@ -1,0 +1,13 @@
+{
+  "name": "ql-vpp",
+  "version": "1.0.0",
+  "description": "QL VPP - 소모품(문구/사무용품) 입출고 관리 시스템",
+  "private": true,
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

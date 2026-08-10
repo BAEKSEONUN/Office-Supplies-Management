@@ -1,10 +1,30 @@
 (() => {
   "use strict";
 
-  const ITEMS_KEY = "osm.items";
-  const MOVEMENTS_KEY = "osm.movements";
-  const LEGACY_USAGES_KEY = "osm.usages";
-  const LANG_KEY = "osm.lang";
+  const LANG_KEY = "osm.lang"; // per-browser UI preference only; items/movements live on the server
+
+  // ================= backend API =================
+  async function apiGet(path) {
+    const res = await fetch(path);
+    if (!res.ok) throw new Error(`GET ${path} failed: ${res.status}`);
+    return res.json();
+  }
+
+  async function apiPost(path, body) {
+    const res = await fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`POST ${path} failed: ${res.status}`);
+    return res.json();
+  }
+
+  async function apiDelete(path) {
+    const res = await fetch(path, { method: "DELETE" });
+    if (!res.ok) throw new Error(`DELETE ${path} failed: ${res.status}`);
+    return res.json();
+  }
 
   // ================= i18n =================
   const TRANSLATIONS = {
@@ -59,6 +79,7 @@
       filter_all: "전체",
       month_option: "{n}월",
       history_title_suffix: "입출고 이력",
+      alert_server_error: "서버와 통신 중 오류가 발생했습니다. 네트워크 연결을 확인해주세요.",
     },
     vi: {
       nav_list: "Danh sách vật tư tiêu hao",
@@ -111,6 +132,7 @@
       filter_all: "Tất cả",
       month_option: "Tháng {n}",
       history_title_suffix: "Lịch sử nhập xuất",
+      alert_server_error: "Đã xảy ra lỗi khi kết nối với máy chủ. Vui lòng kiểm tra kết nối mạng.",
     },
   };
 
@@ -120,8 +142,8 @@
   }
 
   const state = {
-    items: loadItems(),
-    movements: loadMovements(),
+    items: [],
+    movements: [],
     stockSearchTerm: "",
     listSearchTerm: "",
     modalItemId: null,
@@ -138,56 +160,6 @@
       });
     }
     return str;
-  }
-
-  // ---------- storage ----------
-  function loadItems() {
-    try {
-      return JSON.parse(localStorage.getItem(ITEMS_KEY)) || [];
-    } catch {
-      return [];
-    }
-  }
-
-  function loadMovements() {
-    try {
-      const stored = JSON.parse(localStorage.getItem(MOVEMENTS_KEY));
-      if (stored) return stored;
-    } catch {
-      /* ignore */
-    }
-    // migrate legacy usage-log entries (from an earlier version) if present
-    try {
-      const legacy = JSON.parse(localStorage.getItem(LEGACY_USAGES_KEY));
-      if (Array.isArray(legacy) && legacy.length) {
-        return legacy.map((u) => ({
-          id: u.id,
-          itemId: u.itemId,
-          itemName: u.itemName,
-          itemCategory: u.itemCategory,
-          itemUnit: u.itemUnit,
-          type: "출고",
-          date: u.date,
-          qty: u.qty,
-          recipient: u.note || "",
-        }));
-      }
-    } catch {
-      /* ignore */
-    }
-    return [];
-  }
-
-  function saveItems() {
-    localStorage.setItem(ITEMS_KEY, JSON.stringify(state.items));
-  }
-
-  function saveMovements() {
-    localStorage.setItem(MOVEMENTS_KEY, JSON.stringify(state.movements));
-  }
-
-  function genId() {
-    return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   }
 
   function escapeHtml(str) {
@@ -400,35 +372,41 @@
 
   addRowBtn.addEventListener("click", () => addBulkRow());
 
-  bulkSaveBtn.addEventListener("click", () => {
+  bulkSaveBtn.addEventListener("click", async () => {
     const rows = Array.from(bulkTbody.querySelectorAll("tr"));
-    let addedCount = 0;
+    const payload = [];
 
     rows.forEach((tr) => {
       const name = tr.querySelector(".bulk-name").value.trim();
       if (!name) return;
 
-      const item = {
-        id: genId(),
+      payload.push({
         name,
         unit: tr.querySelector(".bulk-unit").value.trim(),
         note: tr.querySelector(".bulk-note").value.trim(),
         photo: bulkPhotos.get(tr.dataset.rowId) || "",
-      };
-      state.items.push(item);
-      addedCount++;
+      });
     });
 
-    if (addedCount === 0) {
+    if (payload.length === 0) {
       alert(t("alert_need_name"));
       return;
     }
 
-    saveItems();
-    resetBulkRows();
-    renderListItems();
-    renderStockItems();
-    alert(t("alert_added_count", { count: addedCount }));
+    bulkSaveBtn.disabled = true;
+    try {
+      const created = await apiPost("/api/items/bulk", payload);
+      state.items.push(...created);
+      resetBulkRows();
+      renderListItems();
+      renderStockItems();
+      alert(t("alert_added_count", { count: created.length }));
+    } catch (err) {
+      console.error(err);
+      alert(t("alert_server_error"));
+    } finally {
+      bulkSaveBtn.disabled = false;
+    }
   });
 
   resetBulkRows();
@@ -471,12 +449,17 @@
     });
   }
 
-  function deleteItem(id) {
+  async function deleteItem(id) {
     if (!confirm(t("confirm_delete_item"))) return;
-    state.items = state.items.filter((it) => it.id !== id);
-    saveItems();
-    renderListItems();
-    renderStockItems();
+    try {
+      await apiDelete(`/api/items/${encodeURIComponent(id)}`);
+      state.items = state.items.filter((it) => it.id !== id);
+      renderListItems();
+      renderStockItems();
+    } catch (err) {
+      console.error(err);
+      alert(t("alert_server_error"));
+    }
   }
 
   // ================= 입출고 관리 =================
@@ -608,7 +591,7 @@
     if (e.target === modalOverlay) closeStockModal();
   });
 
-  modalForm.addEventListener("submit", (e) => {
+  modalForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const item = state.items.find((it) => it.id === state.modalItemId);
     if (!item) return;
@@ -631,8 +614,7 @@
       return;
     }
 
-    const movement = {
-      id: genId(),
+    const payload = {
       itemId: item.id,
       itemName: item.name,
       itemUnit: item.unit,
@@ -642,11 +624,19 @@
       recipient,
     };
 
-    state.movements.unshift(movement);
-    saveMovements();
-
-    closeStockModal();
-    renderStockItems();
+    const submitBtn = document.getElementById("stock-modal-submit");
+    submitBtn.disabled = true;
+    try {
+      const movement = await apiPost("/api/movements", payload);
+      state.movements.unshift(movement);
+      closeStockModal();
+      renderStockItems();
+    } catch (err) {
+      console.error(err);
+      alert(t("alert_server_error"));
+    } finally {
+      submitBtn.disabled = false;
+    }
   });
 
   // ---------- 입출고 이력 모달 ----------
@@ -758,5 +748,17 @@
   });
 
   // ================= init =================
-  applyLanguage();
+  async function init() {
+    try {
+      const [items, movements] = await Promise.all([apiGet("/api/items"), apiGet("/api/movements")]);
+      state.items = items;
+      state.movements = movements;
+    } catch (err) {
+      console.error(err);
+      alert(t("alert_server_error"));
+    }
+    applyLanguage();
+  }
+
+  init();
 })();
