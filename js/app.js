@@ -73,6 +73,24 @@
     lastSeenModified = file.lastModified;
   }
 
+  // The browser can grant "readwrite" permission on a handle while the
+  // underlying OS/network share still blocks the actual write (e.g. the
+  // shared folder or file is set to 읽기 전용/read-only for that person's
+  // Windows account). That combination looks identical to a normal
+  // successful connection — data loads fine — until they try to save
+  // something. Catch it immediately after connecting instead, with a
+  // harmless round-trip write, so the person gets a clear answer up front.
+  async function testWriteAccess() {
+    try {
+      const data = await readDataFile();
+      await writeDataFile(data);
+      return true;
+    } catch (err) {
+      console.error("write test failed", err);
+      return false;
+    }
+  }
+
   async function addItemsBulk(entries) {
     const data = await readDataFile();
     const created = entries.map((entry) => ({
@@ -142,13 +160,18 @@
 
   function updateFileStatusUI() {
     if (fileHandle) {
-      fileStatusText.textContent = t("file_status_connected", { name: fileHandle.name });
+      const base = t("file_status_connected", { name: fileHandle.name });
+      fileStatusText.textContent = state.readOnly ? `${base} ${t("file_status_readonly_suffix")}` : base;
     } else if (pendingSavedHandle) {
       fileStatusText.textContent = t("file_status_reconnecting");
     } else {
       fileStatusText.textContent = t("file_status_disconnected");
     }
     fileChangeBtn.hidden = !fileHandle;
+  }
+
+  function updateReadOnlyUI() {
+    bulkSaveBtn.disabled = state.readOnly;
   }
 
   const reconnectSection = document.getElementById("reconnect-section");
@@ -183,11 +206,14 @@
     fileHandle = handle;
     await idbSet(IDB_KEY, handle);
     await loadAllFromDisk();
+    state.readOnly = !(await testWriteAccess());
     updateFileStatusUI();
+    updateReadOnlyUI();
     hideConnectModal();
     renderListItems();
     renderStockItems();
     startPolling();
+    if (state.readOnly) alert(t("alert_read_only"));
   }
 
   // Silently retries the saved handle's permission using the user's next
@@ -357,6 +383,8 @@
       file_status_connected: "연결됨: {name}",
       file_status_disconnected: "데이터 파일 연결 안 됨",
       file_status_reconnecting: "재연결 대기 중 (화면을 클릭하면 자동 연결)",
+      file_status_readonly_suffix: "(읽기 전용)",
+      alert_read_only: "이 파일은 읽기만 가능합니다. 등록·삭제·입출고 기록을 하려면 폴더/파일의 쓰기 권한이 필요합니다. 공유 폴더 관리자에게 '수정' 권한을 요청해주세요.",
       file_change_btn: "변경",
       alert_permission_denied: "데이터 파일에 대한 접근 권한이 거부되었습니다.",
       alert_file_pick_failed: "데이터 파일을 열지 못했습니다.",
@@ -424,6 +452,8 @@
       file_status_connected: "Đã kết nối: {name}",
       file_status_disconnected: "Chưa kết nối tệp dữ liệu",
       file_status_reconnecting: "Đang chờ kết nối lại (nhấn vào màn hình để tự động kết nối)",
+      file_status_readonly_suffix: "(chỉ đọc)",
+      alert_read_only: "Tệp này chỉ có thể xem, không thể ghi. Để đăng ký/xóa vật tư hoặc ghi nhập xuất, cần quyền ghi trên thư mục/tệp. Vui lòng liên hệ quản trị viên thư mục dùng chung để được cấp quyền 'Chỉnh sửa'.",
       file_change_btn: "Đổi",
       alert_permission_denied: "Quyền truy cập tệp dữ liệu đã bị từ chối.",
       alert_file_pick_failed: "Không thể mở tệp dữ liệu.",
@@ -447,6 +477,7 @@
     modalType: "입고",
     historyItemId: null,
     lang: loadLang(),
+    readOnly: false,
   };
 
   function t(key, vars) {
@@ -737,7 +768,7 @@
         <td>${escapeHtml(item.name)}</td>
         <td>${escapeHtml(item.unit)}</td>
         <td>${escapeHtml(item.note)}</td>
-        <td><button type="button" class="delete-btn" data-id="${item.id}">${t("delete_btn")}</button></td>
+        <td><button type="button" class="delete-btn" data-id="${item.id}" ${state.readOnly ? "disabled" : ""}>${t("delete_btn")}</button></td>
       `;
       listTbody.appendChild(tr);
     });
@@ -833,8 +864,8 @@
         <td class="current-stock ${current < 0 ? "negative" : ""}">${current}</td>
         <td>
           <div class="stock-actions">
-            <button type="button" class="stock-in-btn" data-id="${item.id}" data-type="입고">${t("in_btn")}</button>
-            <button type="button" class="stock-out-btn" data-id="${item.id}" data-type="출고">${t("out_btn")}</button>
+            <button type="button" class="stock-in-btn" data-id="${item.id}" data-type="입고" ${state.readOnly ? "disabled" : ""}>${t("in_btn")}</button>
+            <button type="button" class="stock-out-btn" data-id="${item.id}" data-type="출고" ${state.readOnly ? "disabled" : ""}>${t("out_btn")}</button>
             <button type="button" class="stock-history-btn" data-id="${item.id}">${t("history_btn")}</button>
           </div>
         </td>
@@ -1067,12 +1098,7 @@
         // (armAutoReconnect) instead of forcing a dedicated button here.
         const already = await savedHandle.queryPermission({ mode: "readwrite" });
         if (already === "granted") {
-          fileHandle = savedHandle;
-          await loadAllFromDisk();
-          updateFileStatusUI();
-          renderListItems();
-          renderStockItems();
-          startPolling();
+          await finishConnect(savedHandle);
           return;
         }
         pendingSavedHandle = savedHandle;
