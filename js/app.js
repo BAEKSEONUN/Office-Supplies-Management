@@ -999,7 +999,6 @@
   // ---------- 입출고 일괄 등록 모달 ----------
   const movementModalOverlay = document.getElementById("movement-modal-overlay");
   const movementModalCloseBtn = document.getElementById("movement-modal-close");
-  const openBulkMovementBtn = document.getElementById("open-bulk-movement-btn");
   const bulkMovementTbody = document.getElementById("bulk-movement-tbody");
   const addMovementRowBtn = document.getElementById("add-movement-row-btn");
   const bulkMovementSaveBtn = document.getElementById("bulk-movement-save-btn");
@@ -1057,7 +1056,12 @@
     movementDateFieldsMap.set(rowId, dateFields);
 
     if (prefill && prefill.type) {
-      tr.querySelector(".movement-type-select").value = prefill.type;
+      // this row was opened from a specific item's 입고/출고 button, so lock
+      // the 구분 to that choice — letting it be switched afterward was the
+      // source of "입고를 눌렀는데 출고로 등록됐다" mistakes.
+      const typeSelect = tr.querySelector(".movement-type-select");
+      typeSelect.value = prefill.type;
+      typeSelect.disabled = true;
     }
 
     tr.querySelector(".movement-row-delete").addEventListener("click", () => {
@@ -1077,10 +1081,6 @@
     movementModalOverlay.hidden = false;
   }
 
-  openBulkMovementBtn.addEventListener("click", async () => {
-    if (!(await ensureConnectedOrPrompt())) return;
-    openMovementModal();
-  });
   addMovementRowBtn.addEventListener("click", () => addMovementRow());
   movementModalCloseBtn.addEventListener("click", () => {
     movementModalOverlay.hidden = true;
