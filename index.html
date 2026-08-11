@@ -56,6 +56,7 @@
           <h3><span data-i18n="inventory_title">소모품 목록</span> <span id="inventory-count" class="count-badge">0건</span></h3>
           <div class="table-header-actions">
             <button type="button" id="open-item-modal-btn" class="outline-btn" data-i18n="add_item_btn">+ 품목 추가</button>
+            <button type="button" id="migrate-target-btn" class="outline-btn" data-i18n="migrate_target_btn">적정재고→입고 이관</button>
             <button type="button" id="export-csv-btn" class="accent-btn" data-i18n="export_btn">↓ 엑셀 다운로드</button>
           </div>
         </div>
@@ -153,8 +154,8 @@
         <input type="text" id="edit-item-name" required>
       </label>
       <label>
-        <span data-i18n="th_target">적정재고수량</span>
-        <input type="number" id="edit-item-target" min="0" step="1">
+        <span data-i18n="th_current">현재재고</span>
+        <input type="number" id="edit-item-current" min="0" step="1">
       </label>
       <label>
         <span data-i18n="th_unit">단위</span>

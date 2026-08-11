@@ -139,6 +139,32 @@
     return created;
   }
 
+  const TARGET_MIGRATION_DATE = "2026-08-11";
+
+  async function migrateTargetToInbound() {
+    const data = await readDataFile();
+    let count = 0;
+    data.items.forEach((item) => {
+      const target = Math.max(0, Number(item.target) || 0);
+      if (target > 0) {
+        data.movements.unshift({
+          id: crypto.randomUUID(),
+          itemId: item.id,
+          itemName: item.name,
+          itemUnit: item.unit || "",
+          type: "입고",
+          date: TARGET_MIGRATION_DATE,
+          qty: target,
+          recipient: t("migrate_target_recipient"),
+        });
+        count += 1;
+      }
+      item.target = 0;
+    });
+    await writeDataFile(data);
+    return count;
+  }
+
   async function loadAllFromDisk() {
     const data = await readDataFile();
     state.items = data.items;
@@ -193,6 +219,7 @@
   function updateReadOnlyUI() {
     bulkSaveBtn.disabled = state.readOnly;
     bulkMovementSaveBtn.disabled = state.readOnly;
+    document.getElementById("migrate-target-btn").disabled = state.readOnly;
     updateSelectionToolbar();
   }
 
@@ -386,6 +413,10 @@
       list_empty: "등록된 소모품이 없습니다.",
       add_row_btn: "+ 행 추가",
       bulk_save_btn: "일괄 등록",
+      migrate_target_btn: "적정재고→입고 이관",
+      migrate_target_confirm: "전 품목의 적정재고수량을 2026-08-11자 입고수량으로 이관하고, 적정재고수량을 0으로 초기화합니다. 계속하시겠습니까?",
+      migrate_target_recipient: "초기 재고 이관",
+      migrate_target_done: "{count}개 품목의 적정재고수량을 입고수량으로 이관했습니다.",
       register_h3: "소모품 등록",
       register_hint: "여러 소모품을 한 번에 등록할 수 있습니다. 사진은 선택 사항입니다.",
       close_btn: "닫기",
@@ -484,6 +515,10 @@
       list_empty: "Chưa có vật tư tiêu hao nào được đăng ký.",
       add_row_btn: "+ Thêm dòng",
       bulk_save_btn: "Đăng ký hàng loạt",
+      migrate_target_btn: "Chuyển tồn kho hợp lý → nhập kho",
+      migrate_target_confirm: "Toàn bộ số lượng tồn kho hợp lý của tất cả vật tư sẽ được chuyển thành số lượng nhập kho ngày 2026-08-11, và tồn kho hợp lý sẽ được đặt lại về 0. Bạn có muốn tiếp tục không?",
+      migrate_target_recipient: "Chuyển tồn kho ban đầu",
+      migrate_target_done: "Đã chuyển tồn kho hợp lý sang nhập kho cho {count} vật tư.",
       register_h3: "Đăng ký vật tư tiêu hao",
       register_hint: "Bạn có thể đăng ký nhiều vật tư cùng một lúc. Ảnh là tùy chọn.",
       close_btn: "Đóng",
@@ -903,7 +938,7 @@
   const editItemPhotoInput = document.getElementById("edit-item-photo");
   const editItemPhotoPreview = document.getElementById("edit-item-photo-preview");
   const editItemNameInput = document.getElementById("edit-item-name");
-  const editItemTargetInput = document.getElementById("edit-item-target");
+  const editItemCurrentInput = document.getElementById("edit-item-current");
   const editItemUnitInput = document.getElementById("edit-item-unit");
   const editItemNoteInput = document.getElementById("edit-item-note");
   const editItemCloseBtn = document.getElementById("edit-item-close");
@@ -916,7 +951,8 @@
     editingItemId = item.id;
     editingItemPhoto = item.photo || "";
     editItemNameInput.value = item.name;
-    editItemTargetInput.value = item.target || 0;
+    const stats = computeItemStats(item, buildMovementIndex());
+    editItemCurrentInput.value = stats.current;
     editItemUnitInput.value = item.unit || "";
     editItemNoteInput.value = item.note || "";
     editItemPhotoInput.value = "";
@@ -963,9 +999,11 @@
 
     if (!(await ensureConnectedOrPrompt())) return;
 
+    const { totalIn, totalOut } = getItemTotals(editingItemId, buildMovementIndex());
+    const enteredCurrent = Math.max(0, Number(editItemCurrentInput.value) || 0);
     const patch = {
       name,
-      target: Math.max(0, Number(editItemTargetInput.value) || 0),
+      target: Math.max(0, enteredCurrent + totalOut - totalIn),
       unit: editItemUnitInput.value.trim(),
       note: editItemNoteInput.value.trim(),
       photo: editingItemPhoto,
@@ -1248,6 +1286,24 @@
     if (/[",\n]/.test(str)) return `"${str.replace(/"/g, '""')}"`;
     return str;
   }
+
+  document.getElementById("migrate-target-btn").addEventListener("click", async () => {
+    if (!(await ensureConnectedOrPrompt())) return;
+    if (!confirm(t("migrate_target_confirm"))) return;
+    const btn = document.getElementById("migrate-target-btn");
+    btn.disabled = true;
+    try {
+      const count = await migrateTargetToInbound();
+      await loadAllFromDisk();
+      renderInventoryTable();
+      alert(t("migrate_target_done", { count }));
+    } catch (err) {
+      console.error(err);
+      alert(t("alert_server_error"));
+    } finally {
+      btn.disabled = state.readOnly;
+    }
+  });
 
   document.getElementById("export-csv-btn").addEventListener("click", () => {
     const headers = [
