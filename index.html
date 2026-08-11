@@ -15,8 +15,7 @@
       <button type="button" class="lang-btn" data-lang="vi">Tiếng Việt</button>
     </div>
     <nav class="sidebar-nav">
-      <button type="button" class="nav-btn active" data-view="list" data-i18n="nav_list">소모품 목록</button>
-      <button type="button" class="nav-btn" data-view="stock" data-i18n="nav_stock">입출고 관리</button>
+      <button type="button" class="nav-btn active" data-view="dashboard" data-i18n="nav_dashboard">재고 관리</button>
     </nav>
     <div class="file-status">
       <span id="file-status-text">데이터 파일 연결 안 됨</span>
@@ -26,113 +25,146 @@
 
   <main class="content">
 
-    <!-- 소모품 목록 (등록 + 조회) -->
-    <section id="view-list" class="view active">
-      <h2 data-i18n="nav_list">소모품 목록</h2>
+    <!-- 소모품 재고관리 대시보드 -->
+    <section id="view-dashboard" class="view active">
 
-      <div class="card">
-        <h3 data-i18n="register_h3">소모품 등록</h3>
-        <p class="hint" data-i18n="register_hint">여러 소모품을 한 번에 등록할 수 있습니다. 사진은 선택 사항입니다.</p>
-        <div class="table-wrap">
-          <table id="bulk-item-table">
-            <thead>
-              <tr>
-                <th data-i18n="th_photo">사진</th>
-                <th data-i18n="th_name">품목명</th>
-                <th data-i18n="th_unit">단위</th>
-                <th data-i18n="th_note">비고</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody id="bulk-item-tbody"></tbody>
-          </table>
+      <header class="dashboard-banner">
+        <div class="banner-main">
+          <p class="banner-eyebrow" data-i18n="banner_eyebrow">INVENTORY CONTROL · 재고관리</p>
+          <h1 class="banner-title" data-i18n="banner_title">소모품 재고관리 대시보드</h1>
+          <p class="banner-subtitle" data-i18n="banner_subtitle">적정재고 대비 재고율이 50% 이하로 떨어지면 자동으로 부족 상태가 표시됩니다.</p>
         </div>
-        <div class="form-actions between">
-          <button type="button" id="add-row-btn" class="secondary-btn" data-i18n="add_row_btn">+ 행 추가</button>
-          <button type="button" id="bulk-save-btn" data-i18n="bulk_save_btn">일괄 등록</button>
+        <div class="banner-meta">
+          <div class="banner-clock">
+            <span id="banner-date"></span>
+            <span id="banner-time"></span>
+          </div>
+          <p class="banner-updated"><span data-i18n="banner_updated_label">마지막 업데이트</span>: <span id="banner-updated-at">-</span></p>
+          <p class="banner-live" data-i18n="banner_live">REAL-TIME TRACKING</p>
+        </div>
+      </header>
+
+      <div class="stat-cards">
+        <div class="stat-card">
+          <p class="stat-label" data-i18n="stat_total">전체 품목</p>
+          <p class="stat-value"><span id="stat-total">0</span><span class="stat-unit" data-i18n="unit_case">건</span></p>
+        </div>
+        <div class="stat-card stat-card-danger">
+          <p class="stat-label" data-i18n="stat_shortage">재고 부족 (50% 이하)</p>
+          <p class="stat-value"><span id="stat-shortage">0</span><span class="stat-unit" data-i18n="unit_case">건</span></p>
+        </div>
+        <div class="stat-card stat-card-warning">
+          <p class="stat-label" data-i18n="stat_warning">주의 (50~80%)</p>
+          <p class="stat-value"><span id="stat-warning">0</span><span class="stat-unit" data-i18n="unit_case">건</span></p>
+        </div>
+        <div class="stat-card">
+          <p class="stat-label" data-i18n="stat_shortage_qty">총 부족수량</p>
+          <p class="stat-value"><span id="stat-shortage-qty">0</span><span class="stat-unit" data-i18n="unit_piece">개</span></p>
         </div>
       </div>
 
       <div class="card">
-        <h3 data-i18n="list_query_h3">등록된 소모품 조회</h3>
-        <input type="text" id="list-search" class="search-box" data-i18n-placeholder="search_placeholder" placeholder="품목명으로 검색...">
+        <div class="table-header-row">
+          <h3><span data-i18n="inventory_title">소모품 목록</span> <span id="inventory-count" class="count-badge">0건</span></h3>
+          <div class="table-header-actions">
+            <button type="button" id="open-item-modal-btn" class="outline-btn" data-i18n="add_item_btn">+ 품목 추가</button>
+            <button type="button" id="open-bulk-movement-btn" class="outline-btn" data-i18n="bulk_movement_btn">입출고 일괄 등록</button>
+            <button type="button" id="export-csv-btn" class="accent-btn" data-i18n="export_btn">↓ 엑셀 다운로드</button>
+          </div>
+        </div>
+
+        <input type="text" id="inventory-search" class="search-box" data-i18n-placeholder="search_placeholder" placeholder="품목명으로 검색...">
+
         <div class="table-wrap">
-          <table id="list-item-table">
+          <table id="inventory-table">
             <thead>
               <tr>
-                <th data-i18n="th_photo">사진</th>
-                <th data-i18n="th_name">품목명</th>
-                <th data-i18n="th_unit">단위</th>
-                <th data-i18n="th_note">비고</th>
+                <th data-i18n="th_name">소모품명</th>
+                <th data-i18n="th_target">적정재고수량</th>
+                <th data-i18n="th_used">사용수량</th>
+                <th data-i18n="th_in">입고수량</th>
+                <th data-i18n="th_current">현재재고</th>
+                <th data-i18n="th_shortage">부족수량</th>
+                <th data-i18n="th_ratio">재고율</th>
+                <th data-i18n="th_status">상태</th>
                 <th></th>
               </tr>
             </thead>
-            <tbody id="list-item-tbody"></tbody>
+            <tbody id="inventory-tbody"></tbody>
           </table>
         </div>
-        <p id="list-item-empty" class="empty-msg" hidden data-i18n="list_empty">등록된 소모품이 없습니다.</p>
-      </div>
-    </section>
+        <p id="inventory-empty" class="empty-msg" hidden data-i18n="list_empty">등록된 소모품이 없습니다.</p>
 
-    <!-- 입출고 관리 -->
-    <section id="view-stock" class="view">
-      <h2 data-i18n="nav_stock">입출고 관리</h2>
-
-      <div class="card">
-        <input type="text" id="stock-search" class="search-box" data-i18n-placeholder="search_placeholder" placeholder="품목명으로 검색...">
-        <div class="table-wrap">
-          <table id="stock-item-table">
-            <thead>
-              <tr>
-                <th data-i18n="th_photo">사진</th>
-                <th data-i18n="th_name">품목명</th>
-                <th data-i18n="th_unit">단위</th>
-                <th data-i18n="th_total_in">총입고수량</th>
-                <th data-i18n="th_total_out">총불출수량</th>
-                <th data-i18n="th_current">현재고</th>
-                <th></th>
-                <th data-i18n="th_consumption">월간 소비 사이클</th>
-              </tr>
-            </thead>
-            <tbody id="stock-item-tbody"></tbody>
-          </table>
+        <div class="legend">
+          <span class="legend-item"><span class="legend-dot legend-dot-ok"></span><span data-i18n="legend_ok">정상 (재고율 80% 초과)</span></span>
+          <span class="legend-item"><span class="legend-dot legend-dot-warn"></span><span data-i18n="legend_warn">주의 (재고율 50~80%)</span></span>
+          <span class="legend-item"><span class="legend-dot legend-dot-danger"></span><span data-i18n="legend_danger">부족 (재고율 50% 이하 · 적색 표시)</span></span>
         </div>
-        <p id="stock-item-empty" class="empty-msg" hidden data-i18n="stock_empty">등록된 소모품이 없습니다. 소모품 목록에서 먼저 등록해주세요.</p>
+        <p class="formula-note" data-i18n="formula_note">SUPPLY INVENTORY DASHBOARD · 현재재고 = 적정재고수량 − 사용수량 + 입고수량 · 재고율 = 현재재고 ÷ 적정재고수량</p>
       </div>
+
     </section>
 
   </main>
 </div>
 
-<!-- 입고/출고 입력 모달 -->
-<div id="stock-modal-overlay" class="modal-overlay" hidden>
-  <div class="modal-box stock-modal-box">
-    <h3 id="stock-modal-title">입고 등록</h3>
-    <p id="stock-modal-item-name" class="selected-info active"></p>
-    <form id="stock-modal-form" class="form-grid">
-      <label>
-        <span data-i18n="label_date">날짜</span> <span class="required">*</span>
-        <div class="date-input" data-date-input="modal-date">
-          <input type="text" inputmode="numeric" maxlength="4" class="date-yyyy" placeholder="YYYY">
-          <span class="date-sep">-</span>
-          <input type="text" inputmode="numeric" maxlength="2" class="date-mm" placeholder="MM">
-          <span class="date-sep">-</span>
-          <input type="text" inputmode="numeric" maxlength="2" class="date-dd" placeholder="DD">
-        </div>
-      </label>
-      <label>
-        <span data-i18n="label_qty">수량</span> <span class="required">*</span>
-        <input type="number" id="modal-qty" min="1" step="1" required>
-      </label>
-      <label class="full">
-        <span data-i18n="label_recipient">수령자</span> <span class="required">*</span>
-        <input type="text" id="modal-recipient" data-i18n-placeholder="placeholder_recipient" placeholder="수령자 이름" required>
-      </label>
-      <div class="form-actions between full">
-        <button type="button" id="stock-modal-cancel" class="secondary-btn" data-i18n="cancel_btn">취소</button>
-        <button type="submit" id="stock-modal-submit" data-i18n="save_btn">저장</button>
+<!-- 소모품 등록 모달 -->
+<div id="item-modal-overlay" class="modal-overlay" hidden>
+  <div class="modal-box item-modal-box">
+    <h3 data-i18n="register_h3">소모품 등록</h3>
+    <p class="hint" data-i18n="register_hint">여러 소모품을 한 번에 등록할 수 있습니다. 사진은 선택 사항입니다.</p>
+    <div class="table-wrap">
+      <table id="bulk-item-table">
+        <thead>
+          <tr>
+            <th data-i18n="th_photo">사진</th>
+            <th data-i18n="th_name">품목명</th>
+            <th data-i18n="th_target">적정재고수량</th>
+            <th data-i18n="th_unit">단위</th>
+            <th data-i18n="th_note">비고</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="bulk-item-tbody"></tbody>
+      </table>
+    </div>
+    <div class="form-actions between">
+      <button type="button" id="add-row-btn" class="secondary-btn" data-i18n="add_row_btn">+ 행 추가</button>
+      <div class="form-actions-right">
+        <button type="button" id="item-modal-close" class="secondary-btn" data-i18n="close_btn">닫기</button>
+        <button type="button" id="bulk-save-btn" data-i18n="bulk_save_btn">일괄 등록</button>
       </div>
-    </form>
+    </div>
+  </div>
+</div>
+
+<!-- 입출고 일괄 등록 모달 -->
+<div id="movement-modal-overlay" class="modal-overlay" hidden>
+  <div class="modal-box movement-modal-box">
+    <h3 data-i18n="bulk_movement_title">입출고 일괄 등록</h3>
+    <p class="hint" data-i18n="bulk_movement_hint">여러 건의 입고/출고를 한 번에 등록할 수 있습니다.</p>
+    <div class="table-wrap">
+      <table id="bulk-movement-table">
+        <thead>
+          <tr>
+            <th data-i18n="th_name">소모품</th>
+            <th data-i18n="movement_type">구분</th>
+            <th data-i18n="label_date">날짜</th>
+            <th data-i18n="label_qty">수량</th>
+            <th data-i18n="label_recipient">수령자</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="bulk-movement-tbody"></tbody>
+      </table>
+    </div>
+    <div class="form-actions between">
+      <button type="button" id="add-movement-row-btn" class="secondary-btn" data-i18n="add_row_btn">+ 행 추가</button>
+      <div class="form-actions-right">
+        <button type="button" id="movement-modal-close" class="secondary-btn" data-i18n="close_btn">닫기</button>
+        <button type="button" id="bulk-movement-save-btn" data-i18n="bulk_save_btn">일괄 등록</button>
+      </div>
+    </div>
   </div>
 </div>
 

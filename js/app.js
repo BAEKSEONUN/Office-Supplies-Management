@@ -96,6 +96,7 @@
     const created = entries.map((entry) => ({
       id: crypto.randomUUID(),
       name: entry.name,
+      target: Math.max(0, Number(entry.target) || 0),
       unit: entry.unit || "",
       note: entry.note || "",
       photo: entry.photo || "",
@@ -111,18 +112,19 @@
     await writeDataFile(data);
   }
 
-  async function addMovementOnDisk(payload) {
+  async function addMovementsBulk(entries) {
     const data = await readDataFile();
-    const movement = { id: crypto.randomUUID(), ...payload };
-    data.movements.unshift(movement);
+    const created = entries.map((entry) => ({ id: crypto.randomUUID(), ...entry }));
+    data.movements.unshift(...created);
     await writeDataFile(data);
-    return movement;
+    return created;
   }
 
   async function loadAllFromDisk() {
     const data = await readDataFile();
     state.items = data.items;
     state.movements = data.movements;
+    markUpdated();
   }
 
   function startPolling() {
@@ -133,8 +135,7 @@
         const file = await fileHandle.getFile();
         if (file.lastModified === lastSeenModified) return; // no external change
         await loadAllFromDisk();
-        renderListItems();
-        renderStockItems();
+        renderInventoryTable();
         if (!historyModalOverlay.hidden) renderHistoryTable();
       } catch (err) {
         console.error("poll failed", err);
@@ -172,6 +173,7 @@
 
   function updateReadOnlyUI() {
     bulkSaveBtn.disabled = state.readOnly;
+    bulkMovementSaveBtn.disabled = state.readOnly;
   }
 
   const reconnectSection = document.getElementById("reconnect-section");
@@ -210,8 +212,7 @@
     updateFileStatusUI();
     updateReadOnlyUI();
     hideConnectModal();
-    renderListItems();
-    renderStockItems();
+    renderInventoryTable();
     startPolling();
     if (state.readOnly) alert(t("alert_read_only"));
   }
@@ -324,56 +325,75 @@
   // ================= i18n =================
   const TRANSLATIONS = {
     ko: {
-      nav_list: "소모품 목록",
-      nav_stock: "입출고 관리",
-      register_h3: "소모품 등록",
-      register_hint: "여러 소모품을 한 번에 등록할 수 있습니다. 사진은 선택 사항입니다.",
+      nav_dashboard: "재고 관리",
+      banner_eyebrow: "INVENTORY CONTROL · 재고관리",
+      banner_title: "소모품 재고관리 대시보드",
+      banner_subtitle: "적정재고 대비 재고율이 50% 이하로 떨어지면 자동으로 부족 상태가 표시됩니다.",
+      banner_updated_label: "마지막 업데이트",
+      banner_live: "REAL-TIME TRACKING",
+      stat_total: "전체 품목",
+      stat_shortage: "재고 부족 (50% 이하)",
+      stat_warning: "주의 (50~80%)",
+      stat_shortage_qty: "총 부족수량",
+      unit_case: "건",
+      unit_piece: "개",
+      inventory_title: "소모품 목록",
+      add_item_btn: "+ 품목 추가",
+      bulk_movement_btn: "입출고 일괄 등록",
+      export_btn: "↓ 엑셀 다운로드",
+      search_placeholder: "품목명으로 검색...",
       th_photo: "사진",
-      th_name: "품목명",
+      th_name: "소모품명",
+      th_target: "적정재고수량",
+      th_used: "사용수량",
+      th_in: "입고수량",
+      th_current: "현재재고",
+      th_shortage: "부족수량",
+      th_ratio: "재고율",
+      th_status: "상태",
       th_unit: "단위",
       th_note: "비고",
+      legend_ok: "정상 (재고율 80% 초과)",
+      legend_warn: "주의 (재고율 50~80%)",
+      legend_danger: "부족 (재고율 50% 이하 · 적색 표시)",
+      formula_note: "SUPPLY INVENTORY DASHBOARD · 현재재고 = 적정재고수량 − 사용수량 + 입고수량 · 재고율 = 현재재고 ÷ 적정재고수량",
+      status_ok: "정상",
+      status_warn: "주의",
+      status_danger: "부족",
+      list_empty: "등록된 소모품이 없습니다.",
       add_row_btn: "+ 행 추가",
       bulk_save_btn: "일괄 등록",
-      list_query_h3: "등록된 소모품 조회",
-      search_placeholder: "품목명으로 검색...",
-      list_empty: "등록된 소모품이 없습니다.",
-      stock_empty: "등록된 소모품이 없습니다. 소모품 목록에서 먼저 등록해주세요.",
-      th_total_in: "총입고수량",
-      th_total_out: "총불출수량",
-      th_current: "현재고",
-      th_consumption: "월간 소비 사이클",
+      register_h3: "소모품 등록",
+      register_hint: "여러 소모품을 한 번에 등록할 수 있습니다. 사진은 선택 사항입니다.",
+      close_btn: "닫기",
+      bulk_movement_title: "입출고 일괄 등록",
+      bulk_movement_hint: "여러 건의 입고/출고를 한 번에 등록할 수 있습니다.",
+      movement_type: "구분",
       label_date: "날짜",
       label_qty: "수량",
       label_recipient: "수령자",
       placeholder_recipient: "수령자 이름",
-      cancel_btn: "취소",
-      save_btn: "저장",
       label_year: "연도",
       label_month: "월",
       th_in_short: "입고",
       th_out_short: "출고",
       history_empty: "입출고 이력이 없습니다.",
-      close_btn: "닫기",
       delete_btn: "삭제",
       in_btn: "입고",
       out_btn: "출고",
       history_btn: "이력",
-      modal_title_in: "입고 등록",
-      modal_title_out: "출고 등록",
-      unit_label: " / 단위: {unit}",
+      filter_all: "전체",
+      month_option: "{n}월",
+      history_title_suffix: "입출고 이력",
       alert_need_name: "등록할 소모품의 품목명을 입력해주세요.",
       alert_added_count: "{count}개의 소모품이 등록되었습니다.",
+      alert_movement_added_count: "{count}건의 입출고가 등록되었습니다.",
+      alert_need_items_first: "먼저 소모품을 등록해주세요.",
+      alert_movement_rows_invalid: "입력한 행 중 날짜/수량/수령자가 올바르지 않은 행이 있습니다.",
       confirm_delete_item: "이 소모품을 삭제하시겠습니까? 관련 입출고 내역은 유지됩니다.",
       alert_invalid_date: "날짜를 올바르게 입력해주세요. (예: 2026-08-07)",
       alert_invalid_qty: "수량을 올바르게 입력해주세요.",
       alert_need_recipient: "수령자를 입력해주세요.",
-      consumption_none: "이력 없음",
-      consumption_rate: "월 평균 소비량: 약 {avg}개",
-      consumption_warning: "⚠ 재고 부족",
-      consumption_ok: "재고 충분",
-      filter_all: "전체",
-      month_option: "{n}월",
-      history_title_suffix: "입출고 이력",
       alert_server_error: "데이터 파일과 통신 중 오류가 발생했습니다. 연결 상태를 확인해주세요.",
       connect_title: "데이터 파일 연결",
       connect_desc: "공유 폴더에 있는 데이터 파일을 선택하면, 같은 파일을 연결한 모든 사람과 소모품·입출고 내용이 함께 공유됩니다.",
@@ -393,56 +413,75 @@
       reconnect_pick_other_btn: "다른 파일 선택",
     },
     vi: {
-      nav_list: "Danh sách vật tư tiêu hao",
-      nav_stock: "Quản lý nhập xuất",
-      register_h3: "Đăng ký vật tư tiêu hao",
-      register_hint: "Bạn có thể đăng ký nhiều vật tư cùng một lúc. Ảnh là tùy chọn.",
+      nav_dashboard: "Quản lý tồn kho",
+      banner_eyebrow: "INVENTORY CONTROL · Quản lý tồn kho",
+      banner_title: "Bảng điều khiển tồn kho vật tư",
+      banner_subtitle: "Trạng thái thiếu hàng tự động hiển thị khi tỷ lệ tồn kho giảm xuống dưới 50% so với mức tồn kho hợp lý.",
+      banner_updated_label: "Cập nhật lần cuối",
+      banner_live: "REAL-TIME TRACKING",
+      stat_total: "Tổng số mặt hàng",
+      stat_shortage: "Thiếu hàng (≤ 50%)",
+      stat_warning: "Cảnh báo (50~80%)",
+      stat_shortage_qty: "Tổng số lượng thiếu",
+      unit_case: "mục",
+      unit_piece: "cái",
+      inventory_title: "Danh sách vật tư",
+      add_item_btn: "+ Thêm mặt hàng",
+      bulk_movement_btn: "Đăng ký nhập xuất hàng loạt",
+      export_btn: "↓ Tải Excel",
+      search_placeholder: "Tìm theo tên vật tư...",
       th_photo: "Ảnh",
       th_name: "Tên vật tư",
+      th_target: "Tồn kho hợp lý",
+      th_used: "Số lượng đã dùng",
+      th_in: "Số lượng nhập",
+      th_current: "Tồn kho hiện tại",
+      th_shortage: "Số lượng thiếu",
+      th_ratio: "Tỷ lệ tồn kho",
+      th_status: "Trạng thái",
       th_unit: "Đơn vị",
       th_note: "Ghi chú",
+      legend_ok: "Bình thường (tỷ lệ trên 80%)",
+      legend_warn: "Cảnh báo (tỷ lệ 50~80%)",
+      legend_danger: "Thiếu hàng (tỷ lệ ≤ 50% · hiển thị đỏ)",
+      formula_note: "SUPPLY INVENTORY DASHBOARD · Tồn kho hiện tại = Tồn kho hợp lý − Số lượng dùng + Số lượng nhập · Tỷ lệ tồn kho = Tồn kho hiện tại ÷ Tồn kho hợp lý",
+      status_ok: "Bình thường",
+      status_warn: "Cảnh báo",
+      status_danger: "Thiếu hàng",
+      list_empty: "Chưa có vật tư tiêu hao nào được đăng ký.",
       add_row_btn: "+ Thêm dòng",
       bulk_save_btn: "Đăng ký hàng loạt",
-      list_query_h3: "Xem vật tư đã đăng ký",
-      search_placeholder: "Tìm theo tên vật tư...",
-      list_empty: "Chưa có vật tư tiêu hao nào được đăng ký.",
-      stock_empty: "Chưa có vật tư nào. Vui lòng đăng ký vật tư trong Danh sách vật tư tiêu hao trước.",
-      th_total_in: "Tổng số lượng nhập",
-      th_total_out: "Tổng số lượng xuất",
-      th_current: "Tồn kho hiện tại",
-      th_consumption: "Chu kỳ tiêu thụ hàng tháng",
+      register_h3: "Đăng ký vật tư tiêu hao",
+      register_hint: "Bạn có thể đăng ký nhiều vật tư cùng một lúc. Ảnh là tùy chọn.",
+      close_btn: "Đóng",
+      bulk_movement_title: "Đăng ký nhập xuất hàng loạt",
+      bulk_movement_hint: "Bạn có thể đăng ký nhiều lượt nhập/xuất cùng một lúc.",
+      movement_type: "Loại",
       label_date: "Ngày",
       label_qty: "Số lượng",
       label_recipient: "Người nhận",
       placeholder_recipient: "Tên người nhận",
-      cancel_btn: "Hủy",
-      save_btn: "Lưu",
       label_year: "Năm",
       label_month: "Tháng",
       th_in_short: "Nhập",
       th_out_short: "Xuất",
       history_empty: "Không có lịch sử nhập xuất.",
-      close_btn: "Đóng",
       delete_btn: "Xóa",
       in_btn: "Nhập",
       out_btn: "Xuất",
       history_btn: "Lịch sử",
-      modal_title_in: "Đăng ký nhập kho",
-      modal_title_out: "Đăng ký xuất kho",
-      unit_label: " / Đơn vị: {unit}",
+      filter_all: "Tất cả",
+      month_option: "Tháng {n}",
+      history_title_suffix: "Lịch sử nhập xuất",
       alert_need_name: "Vui lòng nhập tên vật tư cần đăng ký.",
       alert_added_count: "Đã đăng ký {count} vật tư.",
+      alert_movement_added_count: "Đã đăng ký {count} lượt nhập xuất.",
+      alert_need_items_first: "Vui lòng đăng ký vật tư trước.",
+      alert_movement_rows_invalid: "Một số dòng có ngày/số lượng/người nhận không hợp lệ.",
       confirm_delete_item: "Bạn có muốn xóa vật tư này không? Lịch sử nhập xuất liên quan vẫn được giữ lại.",
       alert_invalid_date: "Vui lòng nhập ngày hợp lệ. (Ví dụ: 2026-08-07)",
       alert_invalid_qty: "Vui lòng nhập số lượng hợp lệ.",
       alert_need_recipient: "Vui lòng nhập tên người nhận.",
-      consumption_none: "Chưa có lịch sử",
-      consumption_rate: "Tiêu thụ TB/tháng: khoảng {avg}",
-      consumption_warning: "⚠ Thiếu tồn kho",
-      consumption_ok: "Đủ tồn kho",
-      filter_all: "Tất cả",
-      month_option: "Tháng {n}",
-      history_title_suffix: "Lịch sử nhập xuất",
       alert_server_error: "Đã xảy ra lỗi khi kết nối với tệp dữ liệu. Vui lòng kiểm tra kết nối.",
       connect_title: "Kết nối tệp dữ liệu",
       connect_desc: "Chọn tệp dữ liệu trong thư mục dùng chung để chia sẻ vật tư và lịch sử nhập xuất với mọi người đã kết nối cùng tệp.",
@@ -471,13 +510,11 @@
   const state = {
     items: [],
     movements: [],
-    stockSearchTerm: "",
-    listSearchTerm: "",
-    modalItemId: null,
-    modalType: "입고",
+    inventorySearchTerm: "",
     historyItemId: null,
     lang: loadLang(),
     readOnly: false,
+    lastUpdatedAt: null,
   };
 
   function t(key, vars) {
@@ -533,17 +570,10 @@
     // re-render dynamically generated content in the new language, without
     // losing in-progress bulk-registration input or photos
     applyBulkRowPlaceholders();
-    renderListItems();
-    renderStockItems();
+    applyMovementRowPlaceholders();
+    renderInventoryTable();
     updateFileStatusUI();
-
-    if (!modalOverlay.hidden) {
-      modalTitle.textContent = state.modalType === "입고" ? t("modal_title_in") : t("modal_title_out");
-      const item = state.items.find((it) => it.id === state.modalItemId);
-      if (item) {
-        modalItemName.textContent = `${item.name}${item.unit ? t("unit_label", { unit: item.unit }) : ""}`;
-      }
-    }
+    renderClock();
 
     const prevYear = historyYearSelect.value;
     const prevMonth = historyMonthSelect.value;
@@ -566,6 +596,48 @@
       applyLanguage();
     });
   });
+
+  // ================= Live clock / last-updated =================
+  const bannerDateEl = document.getElementById("banner-date");
+  const bannerTimeEl = document.getElementById("banner-time");
+  const bannerUpdatedAtEl = document.getElementById("banner-updated-at");
+
+  const WEEKDAYS_KO = ["일", "월", "화", "수", "목", "금", "토"];
+  const WEEKDAYS_VI = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
+
+  function pad2(n) {
+    return String(n).padStart(2, "0");
+  }
+
+  function formatDate(d) {
+    const y = d.getFullYear();
+    const m = pad2(d.getMonth() + 1);
+    const day = pad2(d.getDate());
+    const wd = state.lang === "vi" ? WEEKDAYS_VI[d.getDay()] : WEEKDAYS_KO[d.getDay()];
+    return state.lang === "vi" ? `${day}/${m}/${y} (${wd})` : `${y}. ${m}. ${day}. (${wd})`;
+  }
+
+  function formatTime(d) {
+    return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+  }
+
+  function formatDateTime(d) {
+    return `${formatDate(d)} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  }
+
+  function renderClock() {
+    const now = new Date();
+    bannerDateEl.textContent = formatDate(now);
+    bannerTimeEl.textContent = formatTime(now);
+    bannerUpdatedAtEl.textContent = state.lastUpdatedAt ? formatDateTime(state.lastUpdatedAt) : "-";
+  }
+
+  function markUpdated() {
+    state.lastUpdatedAt = new Date();
+    renderClock();
+  }
+
+  setInterval(renderClock, 1000);
 
   // ================= Custom date input (YYYY / MM / DD) =================
   // Fixes: native date inputs allowed the year segment to accept up to 6
@@ -641,7 +713,10 @@
     fields.dd.value = d || "";
   }
 
-  // ================= 소모품 등록 (bulk) =================
+  // ================= 소모품 등록 모달 (bulk) =================
+  const itemModalOverlay = document.getElementById("item-modal-overlay");
+  const itemModalCloseBtn = document.getElementById("item-modal-close");
+  const openItemModalBtn = document.getElementById("open-item-modal-btn");
   const bulkTbody = document.getElementById("bulk-item-tbody");
   const addRowBtn = document.getElementById("add-row-btn");
   const bulkSaveBtn = document.getElementById("bulk-save-btn");
@@ -668,6 +743,7 @@
         <img class="photo-preview" data-row-id="${rowId}" hidden alt="">
       </td>
       <td><input type="text" class="bulk-name" placeholder="${t("th_name")}"></td>
+      <td><input type="number" class="bulk-target" min="0" step="1" value="0"></td>
       <td><input type="text" class="bulk-unit" placeholder="${t("th_unit")}"></td>
       <td><input type="text" class="bulk-note" placeholder="${t("th_note")}"></td>
       <td><button type="button" class="delete-btn bulk-row-delete">${t("delete_btn")}</button></td>
@@ -700,6 +776,17 @@
   }
 
   addRowBtn.addEventListener("click", () => addBulkRow());
+  resetBulkRows();
+
+  openItemModalBtn.addEventListener("click", () => {
+    itemModalOverlay.hidden = false;
+  });
+  itemModalCloseBtn.addEventListener("click", () => {
+    itemModalOverlay.hidden = true;
+  });
+  itemModalOverlay.addEventListener("click", (e) => {
+    if (e.target === itemModalOverlay) itemModalOverlay.hidden = true;
+  });
 
   bulkSaveBtn.addEventListener("click", async () => {
     const rows = Array.from(bulkTbody.querySelectorAll("tr"));
@@ -711,6 +798,7 @@
 
       payload.push({
         name,
+        target: tr.querySelector(".bulk-target").value,
         unit: tr.querySelector(".bulk-unit").value.trim(),
         note: tr.querySelector(".bulk-note").value.trim(),
         photo: bulkPhotos.get(tr.dataset.rowId) || "",
@@ -728,81 +816,39 @@
     try {
       const created = await addItemsBulk(payload);
       state.items.push(...created);
+      markUpdated();
       resetBulkRows();
-      renderListItems();
-      renderStockItems();
+      renderInventoryTable();
+      itemModalOverlay.hidden = true;
       alert(t("alert_added_count", { count: created.length }));
     } catch (err) {
       console.error(err);
       alert(t("alert_server_error"));
     } finally {
-      bulkSaveBtn.disabled = false;
+      bulkSaveBtn.disabled = state.readOnly;
     }
   });
 
-  resetBulkRows();
+  // ================= 소모품 재고 대시보드 =================
+  const inventorySearchInput = document.getElementById("inventory-search");
+  const inventoryTbody = document.getElementById("inventory-tbody");
+  const inventoryEmptyMsg = document.getElementById("inventory-empty");
+  const inventoryCountEl = document.getElementById("inventory-count");
 
-  // ================= 소모품 목록 (조회) =================
-  const listSearchInput = document.getElementById("list-search");
-  const listTbody = document.getElementById("list-item-tbody");
-  const listEmptyMsg = document.getElementById("list-item-empty");
+  const statTotalEl = document.getElementById("stat-total");
+  const statShortageEl = document.getElementById("stat-shortage");
+  const statWarningEl = document.getElementById("stat-warning");
+  const statShortageQtyEl = document.getElementById("stat-shortage-qty");
 
-  listSearchInput.addEventListener("input", () => {
-    state.listSearchTerm = listSearchInput.value.trim().toLowerCase();
-    renderListItems();
+  inventorySearchInput.addEventListener("input", () => {
+    state.inventorySearchTerm = inventorySearchInput.value.trim().toLowerCase();
+    renderInventoryTable();
   });
 
   function filterItems(items, term) {
     if (!term) return items;
     return items.filter((it) => it.name.toLowerCase().includes(term));
   }
-
-  function renderListItems() {
-    const filtered = filterItems(state.items, state.listSearchTerm);
-    listTbody.innerHTML = "";
-
-    filtered.forEach((item) => {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td>${photoCellHtml(item.photo)}</td>
-        <td>${escapeHtml(item.name)}</td>
-        <td>${escapeHtml(item.unit)}</td>
-        <td>${escapeHtml(item.note)}</td>
-        <td><button type="button" class="delete-btn" data-id="${item.id}" ${state.readOnly ? "disabled" : ""}>${t("delete_btn")}</button></td>
-      `;
-      listTbody.appendChild(tr);
-    });
-
-    listEmptyMsg.hidden = filtered.length !== 0;
-
-    listTbody.querySelectorAll(".delete-btn").forEach((btn) => {
-      btn.addEventListener("click", () => deleteItem(btn.dataset.id));
-    });
-  }
-
-  async function deleteItem(id) {
-    if (!(await ensureConnectedOrPrompt())) return;
-    if (!confirm(t("confirm_delete_item"))) return;
-    try {
-      await deleteItemOnDisk(id);
-      state.items = state.items.filter((it) => it.id !== id);
-      renderListItems();
-      renderStockItems();
-    } catch (err) {
-      console.error(err);
-      alert(t("alert_server_error"));
-    }
-  }
-
-  // ================= 입출고 관리 =================
-  const stockSearchInput = document.getElementById("stock-search");
-  const stockTbody = document.getElementById("stock-item-tbody");
-  const stockEmptyMsg = document.getElementById("stock-item-empty");
-
-  stockSearchInput.addEventListener("input", () => {
-    state.stockSearchTerm = stockSearchInput.value.trim().toLowerCase();
-    renderStockItems();
-  });
 
   function getItemTotals(itemId) {
     let totalIn = 0;
@@ -812,163 +858,307 @@
       if (m.type === "입고") totalIn += m.qty;
       else if (m.type === "출고") totalOut += m.qty;
     });
-    return { totalIn, totalOut, current: totalIn - totalOut };
+    return { totalIn, totalOut };
   }
 
-  // Monthly consumption cycle: average 출고(outgoing) quantity per month,
-  // based on the span from the earliest recorded 출고 date up to today.
-  function getMonthlyConsumption(itemId) {
-    const outs = state.movements.filter((m) => m.itemId === itemId && m.type === "출고");
-    if (outs.length === 0) return null;
-
-    const totalOut = outs.reduce((sum, m) => sum + m.qty, 0);
-    const earliestDate = outs.map((m) => m.date).sort()[0];
-    const [ey, em] = earliestDate.split("-").map(Number);
-    const now = new Date();
-    const monthsSpan = Math.max(1, (now.getFullYear() - ey) * 12 + (now.getMonth() + 1 - em) + 1);
-
-    return { avgPerMonth: totalOut / monthsSpan };
+  // 현재재고 = 적정재고수량 − 사용수량(출고) + 입고수량
+  // 재고율 = 현재재고 ÷ 적정재고수량
+  // 상태: 재고율 > 80% 정상, 50% < 재고율 ≤ 80% 주의, 재고율 ≤ 50% 부족
+  function computeItemStats(item) {
+    const { totalIn, totalOut } = getItemTotals(item.id);
+    const target = Math.max(0, Number(item.target) || 0);
+    const current = target - totalOut + totalIn;
+    const shortage = Math.max(0, target - current);
+    const ratio = target > 0 ? Math.round((current / target) * 100) : 0;
+    const status = ratio > 80 ? "ok" : ratio > 50 ? "warn" : "danger";
+    return { target, totalIn, totalOut, current, shortage, ratio, status };
   }
 
-  function consumptionCycleHtml(itemId, currentStock) {
-    const consumption = getMonthlyConsumption(itemId);
-    if (!consumption) {
-      return `<span class="consumption-none">${t("consumption_none")}</span>`;
-    }
+  function statusBadgeHtml(status) {
+    const key = status === "ok" ? "status_ok" : status === "warn" ? "status_warn" : "status_danger";
+    return `<span class="status-badge status-${status}">${t(key)}</span>`;
+  }
 
-    const avg = consumption.avgPerMonth;
-    const isShort = currentStock < avg;
-    const badge = isShort
-      ? `<span class="consumption-warning">${t("consumption_warning")}</span>`
-      : `<span class="consumption-ok">${t("consumption_ok")}</span>`;
-
+  function ratioCellHtml(ratio, status) {
+    const clamped = Math.max(0, Math.min(100, ratio));
+    const fillClass = status === "warn" ? "warn" : status === "danger" ? "danger" : "";
     return `
-      <div class="consumption-rate">${t("consumption_rate", { avg: avg.toFixed(1) })}</div>
-      ${badge}
+      <span class="ratio-bar-track"><span class="ratio-bar-fill ${fillClass}" style="width:${clamped}%"></span></span>
+      <span class="ratio-pct">${ratio}%</span>
     `;
   }
 
-  function renderStockItems() {
-    const filtered = filterItems(state.items, state.stockSearchTerm);
-    stockTbody.innerHTML = "";
+  function updateStatCards() {
+    let shortageCount = 0;
+    let warningCount = 0;
+    let totalShortageQty = 0;
+
+    state.items.forEach((item) => {
+      const { shortage, status } = computeItemStats(item);
+      totalShortageQty += shortage;
+      if (status === "danger") shortageCount++;
+      else if (status === "warn") warningCount++;
+    });
+
+    statTotalEl.textContent = state.items.length;
+    statShortageEl.textContent = shortageCount;
+    statWarningEl.textContent = warningCount;
+    statShortageQtyEl.textContent = totalShortageQty;
+    inventoryCountEl.textContent = `${state.items.length}${t("unit_case")}`;
+  }
+
+  function renderInventoryTable() {
+    const filtered = filterItems(state.items, state.inventorySearchTerm);
+    inventoryTbody.innerHTML = "";
 
     filtered.forEach((item) => {
-      const { totalIn, totalOut, current } = getItemTotals(item.id);
+      const stats = computeItemStats(item);
       const tr = document.createElement("tr");
       tr.innerHTML = `
-        <td>${photoCellHtml(item.photo)}</td>
-        <td>${escapeHtml(item.name)}</td>
-        <td>${escapeHtml(item.unit)}</td>
-        <td>${totalIn}</td>
-        <td>${totalOut}</td>
-        <td class="current-stock ${current < 0 ? "negative" : ""}">${current}</td>
+        <td class="item-name-cell">${photoCellHtml(item.photo)} ${escapeHtml(item.name)}</td>
+        <td>${stats.target}</td>
+        <td>${stats.totalOut}</td>
+        <td>${stats.totalIn}</td>
+        <td>${stats.current}</td>
+        <td class="shortage-cell ${stats.shortage > 0 ? "has-shortage" : ""}">${stats.shortage}</td>
+        <td class="ratio-cell">${ratioCellHtml(stats.ratio, stats.status)}</td>
+        <td>${statusBadgeHtml(stats.status)}</td>
         <td>
           <div class="stock-actions">
             <button type="button" class="stock-in-btn" data-id="${item.id}" data-type="입고" ${state.readOnly ? "disabled" : ""}>${t("in_btn")}</button>
             <button type="button" class="stock-out-btn" data-id="${item.id}" data-type="출고" ${state.readOnly ? "disabled" : ""}>${t("out_btn")}</button>
             <button type="button" class="stock-history-btn" data-id="${item.id}">${t("history_btn")}</button>
+            <button type="button" class="delete-btn" data-id="${item.id}" ${state.readOnly ? "disabled" : ""}>✕</button>
           </div>
         </td>
-        <td class="consumption-cycle">${consumptionCycleHtml(item.id, current)}</td>
       `;
-      stockTbody.appendChild(tr);
+      inventoryTbody.appendChild(tr);
     });
 
-    stockEmptyMsg.hidden = filtered.length !== 0;
+    inventoryEmptyMsg.hidden = filtered.length !== 0;
 
-    stockTbody.querySelectorAll(".stock-in-btn, .stock-out-btn").forEach((btn) => {
-      btn.addEventListener("click", () => openStockModal(btn.dataset.id, btn.dataset.type));
+    inventoryTbody.querySelectorAll(".stock-in-btn, .stock-out-btn").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        if (!(await ensureConnectedOrPrompt())) return;
+        openMovementModal({ itemId: btn.dataset.id, type: btn.dataset.type });
+      });
     });
-    stockTbody.querySelectorAll(".stock-history-btn").forEach((btn) => {
+    inventoryTbody.querySelectorAll(".stock-history-btn").forEach((btn) => {
       btn.addEventListener("click", () => openHistoryModal(btn.dataset.id));
     });
+    inventoryTbody.querySelectorAll(".delete-btn").forEach((btn) => {
+      btn.addEventListener("click", () => deleteItem(btn.dataset.id));
+    });
+
+    updateStatCards();
   }
 
-  // ---------- 입고/출고 모달 ----------
-  const modalOverlay = document.getElementById("stock-modal-overlay");
-  const modalTitle = document.getElementById("stock-modal-title");
-  const modalItemName = document.getElementById("stock-modal-item-name");
-  const modalForm = document.getElementById("stock-modal-form");
-  const modalQtyInput = document.getElementById("modal-qty");
-  const modalRecipientInput = document.getElementById("modal-recipient");
-  const modalCancelBtn = document.getElementById("stock-modal-cancel");
-
-  const modalDateContainer = document.querySelector('[data-date-input="modal-date"]');
-  const modalDateFields = initDateInput(modalDateContainer);
-
-  async function openStockModal(itemId, type) {
+  async function deleteItem(id) {
     if (!(await ensureConnectedOrPrompt())) return;
-    const item = state.items.find((it) => it.id === itemId);
-    if (!item) return;
-
-    state.modalItemId = itemId;
-    state.modalType = type;
-
-    modalTitle.textContent = type === "입고" ? t("modal_title_in") : t("modal_title_out");
-    modalItemName.textContent = `${item.name}${item.unit ? t("unit_label", { unit: item.unit }) : ""}`;
-    modalQtyInput.value = "";
-    modalRecipientInput.value = "";
-    setDateValue(modalDateFields, new Date().toISOString().slice(0, 10));
-
-    modalOverlay.hidden = false;
-    modalQtyInput.focus();
+    if (!confirm(t("confirm_delete_item"))) return;
+    try {
+      await deleteItemOnDisk(id);
+      state.items = state.items.filter((it) => it.id !== id);
+      markUpdated();
+      renderInventoryTable();
+    } catch (err) {
+      console.error(err);
+      alert(t("alert_server_error"));
+    }
   }
 
-  function closeStockModal() {
-    modalOverlay.hidden = true;
-    state.modalItemId = null;
+  // ================= CSV(엑셀) 다운로드 =================
+  function csvEscape(value) {
+    const str = String(value ?? "");
+    if (/[",\n]/.test(str)) return `"${str.replace(/"/g, '""')}"`;
+    return str;
   }
 
-  modalCancelBtn.addEventListener("click", closeStockModal);
-  modalOverlay.addEventListener("click", (e) => {
-    if (e.target === modalOverlay) closeStockModal();
+  document.getElementById("export-csv-btn").addEventListener("click", () => {
+    const headers = [
+      t("th_name"),
+      t("th_target"),
+      t("th_used"),
+      t("th_in"),
+      t("th_current"),
+      t("th_shortage"),
+      t("th_ratio"),
+      t("th_status"),
+    ];
+
+    const rows = state.items.map((item) => {
+      const s = computeItemStats(item);
+      const statusKey = s.status === "ok" ? "status_ok" : s.status === "warn" ? "status_warn" : "status_danger";
+      return [item.name, s.target, s.totalOut, s.totalIn, s.current, s.shortage, `${s.ratio}%`, t(statusKey)];
+    });
+
+    const csv = [headers, ...rows].map((row) => row.map(csvEscape).join(",")).join("\r\n");
+    const blob = new Blob([`﻿${csv}`], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const now = new Date();
+    const fname = `qlvpp-inventory-${now.getFullYear()}${pad2(now.getMonth() + 1)}${pad2(now.getDate())}.csv`;
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fname;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   });
 
-  modalForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const item = state.items.find((it) => it.id === state.modalItemId);
-    if (!item) return;
+  // ---------- 입출고 일괄 등록 모달 ----------
+  const movementModalOverlay = document.getElementById("movement-modal-overlay");
+  const movementModalCloseBtn = document.getElementById("movement-modal-close");
+  const openBulkMovementBtn = document.getElementById("open-bulk-movement-btn");
+  const bulkMovementTbody = document.getElementById("bulk-movement-tbody");
+  const addMovementRowBtn = document.getElementById("add-movement-row-btn");
+  const bulkMovementSaveBtn = document.getElementById("bulk-movement-save-btn");
 
-    const date = getDateValue(modalDateFields);
-    if (!date) {
-      alert(t("alert_invalid_date"));
+  let movementRowSeq = 0;
+  const movementDateFieldsMap = new Map(); // rowId -> {yyyy, mm, dd}
+
+  function itemOptionsHtml(selectedId) {
+    return state.items
+      .map((it) => `<option value="${it.id}" ${it.id === selectedId ? "selected" : ""}>${escapeHtml(it.name)}</option>`)
+      .join("");
+  }
+
+  function applyMovementRowPlaceholders() {
+    bulkMovementTbody.querySelectorAll(".movement-recipient").forEach((el) => (el.placeholder = t("placeholder_recipient")));
+    bulkMovementTbody.querySelectorAll(".movement-row-delete").forEach((el) => (el.textContent = t("delete_btn")));
+    bulkMovementTbody.querySelectorAll(".movement-type-select").forEach((sel) => {
+      const val = sel.value;
+      sel.innerHTML = `<option value="입고">${t("in_btn")}</option><option value="출고">${t("out_btn")}</option>`;
+      sel.value = val;
+    });
+  }
+
+  function addMovementRow(prefill) {
+    const rowId = `mrow-${++movementRowSeq}`;
+
+    const tr = document.createElement("tr");
+    tr.dataset.rowId = rowId;
+    tr.innerHTML = `
+      <td><select class="movement-item-select">${itemOptionsHtml(prefill && prefill.itemId)}</select></td>
+      <td>
+        <select class="movement-type-select">
+          <option value="입고">${t("in_btn")}</option>
+          <option value="출고">${t("out_btn")}</option>
+        </select>
+      </td>
+      <td>
+        <div class="date-input" data-row-date="${rowId}">
+          <input type="text" inputmode="numeric" maxlength="4" class="date-yyyy" placeholder="YYYY">
+          <span class="date-sep">-</span>
+          <input type="text" inputmode="numeric" maxlength="2" class="date-mm" placeholder="MM">
+          <span class="date-sep">-</span>
+          <input type="text" inputmode="numeric" maxlength="2" class="date-dd" placeholder="DD">
+        </div>
+      </td>
+      <td><input type="number" class="movement-qty" min="1" step="1"></td>
+      <td><input type="text" class="movement-recipient" placeholder="${t("placeholder_recipient")}"></td>
+      <td><button type="button" class="delete-btn movement-row-delete">${t("delete_btn")}</button></td>
+    `;
+    bulkMovementTbody.appendChild(tr);
+
+    const dateContainer = tr.querySelector(`[data-row-date="${rowId}"]`);
+    const dateFields = initDateInput(dateContainer);
+    setDateValue(dateFields, new Date().toISOString().slice(0, 10));
+    movementDateFieldsMap.set(rowId, dateFields);
+
+    if (prefill && prefill.type) {
+      tr.querySelector(".movement-type-select").value = prefill.type;
+    }
+
+    tr.querySelector(".movement-row-delete").addEventListener("click", () => {
+      movementDateFieldsMap.delete(rowId);
+      tr.remove();
+    });
+  }
+
+  function openMovementModal(prefill) {
+    if (state.items.length === 0) {
+      alert(t("alert_need_items_first"));
+      return;
+    }
+    bulkMovementTbody.innerHTML = "";
+    movementDateFieldsMap.clear();
+    addMovementRow(prefill);
+    movementModalOverlay.hidden = false;
+  }
+
+  openBulkMovementBtn.addEventListener("click", async () => {
+    if (!(await ensureConnectedOrPrompt())) return;
+    openMovementModal();
+  });
+  addMovementRowBtn.addEventListener("click", () => addMovementRow());
+  movementModalCloseBtn.addEventListener("click", () => {
+    movementModalOverlay.hidden = true;
+  });
+  movementModalOverlay.addEventListener("click", (e) => {
+    if (e.target === movementModalOverlay) movementModalOverlay.hidden = true;
+  });
+
+  bulkMovementSaveBtn.addEventListener("click", async () => {
+    const rows = Array.from(bulkMovementTbody.querySelectorAll("tr"));
+    const payload = [];
+    let hasInvalidRow = false;
+
+    rows.forEach((tr) => {
+      const qtyRaw = tr.querySelector(".movement-qty").value;
+      const recipient = tr.querySelector(".movement-recipient").value.trim();
+      const attempted = qtyRaw !== "" || recipient !== "";
+      if (!attempted) return; // silently skip a completely untouched row
+
+      const itemId = tr.querySelector(".movement-item-select").value;
+      const type = tr.querySelector(".movement-type-select").value;
+      const dateFields = movementDateFieldsMap.get(tr.dataset.rowId);
+      const date = getDateValue(dateFields);
+      const qty = Number(qtyRaw);
+      const item = state.items.find((it) => it.id === itemId);
+
+      if (!item || !date || !qty || qty <= 0 || !recipient) {
+        hasInvalidRow = true;
+        return;
+      }
+
+      payload.push({
+        itemId: item.id,
+        itemName: item.name,
+        itemUnit: item.unit,
+        type,
+        date,
+        qty,
+        recipient,
+      });
+    });
+
+    if (hasInvalidRow) {
+      alert(t("alert_movement_rows_invalid"));
       return;
     }
 
-    const qty = Number(modalQtyInput.value);
-    if (!qty || qty <= 0) {
+    if (payload.length === 0) {
       alert(t("alert_invalid_qty"));
       return;
     }
 
-    const recipient = modalRecipientInput.value.trim();
-    if (!recipient) {
-      alert(t("alert_need_recipient"));
-      return;
-    }
+    if (!(await ensureConnectedOrPrompt())) return;
 
-    const payload = {
-      itemId: item.id,
-      itemName: item.name,
-      itemUnit: item.unit,
-      type: state.modalType,
-      date,
-      qty,
-      recipient,
-    };
-
-    const submitBtn = document.getElementById("stock-modal-submit");
-    submitBtn.disabled = true;
+    bulkMovementSaveBtn.disabled = true;
     try {
-      const movement = await addMovementOnDisk(payload);
-      state.movements.unshift(movement);
-      closeStockModal();
-      renderStockItems();
+      const created = await addMovementsBulk(payload);
+      state.movements.unshift(...created);
+      markUpdated();
+      movementModalOverlay.hidden = true;
+      renderInventoryTable();
+      alert(t("alert_movement_added_count", { count: created.length }));
     } catch (err) {
       console.error(err);
       alert(t("alert_server_error"));
     } finally {
-      submitBtn.disabled = false;
+      bulkMovementSaveBtn.disabled = state.readOnly;
     }
   });
 
@@ -1083,6 +1273,7 @@
   // ================= init =================
   async function init() {
     applyLanguage(); // paint static UI immediately, before any file access
+    renderClock();
 
     if (!FS_SUPPORTED) {
       showConnectModal();
