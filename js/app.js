@@ -327,7 +327,7 @@
     ko: {
       nav_dashboard: "재고 관리",
       banner_eyebrow: "INVENTORY CONTROL · 재고관리",
-      banner_title: "소모품 재고관리 대시보드",
+      banner_title: "소모품 재고관리",
       banner_subtitle: "적정재고 대비 재고율이 50% 이하로 떨어지면 자동으로 부족 상태가 표시됩니다.",
       banner_updated_label: "마지막 업데이트",
       banner_live: "REAL-TIME TRACKING",
@@ -337,6 +337,9 @@
       stat_shortage_qty: "총 부족수량",
       unit_case: "건",
       unit_piece: "개",
+      approx_prefix: "약 ",
+      consumption_weekly: "주간 소요량",
+      consumption_monthly: "월간 소요량",
       inventory_title: "소모품 목록",
       add_item_btn: "+ 품목 추가",
       bulk_movement_btn: "입출고 일괄 등록",
@@ -415,7 +418,7 @@
     vi: {
       nav_dashboard: "Quản lý tồn kho",
       banner_eyebrow: "INVENTORY CONTROL · Quản lý tồn kho",
-      banner_title: "Bảng điều khiển tồn kho vật tư",
+      banner_title: "Quản lý tồn kho vật tư",
       banner_subtitle: "Trạng thái thiếu hàng tự động hiển thị khi tỷ lệ tồn kho giảm xuống dưới 50% so với mức tồn kho hợp lý.",
       banner_updated_label: "Cập nhật lần cuối",
       banner_live: "REAL-TIME TRACKING",
@@ -425,6 +428,9 @@
       stat_shortage_qty: "Tổng số lượng thiếu",
       unit_case: "mục",
       unit_piece: "cái",
+      approx_prefix: "khoảng ",
+      consumption_weekly: "Tiêu thụ/tuần",
+      consumption_monthly: "Tiêu thụ/tháng",
       inventory_title: "Danh sách vật tư",
       add_item_btn: "+ Thêm mặt hàng",
       bulk_movement_btn: "Đăng ký nhập xuất hàng loạt",
@@ -863,6 +869,34 @@
     return { target, totalIn, totalOut, current, shortage, ratio, status };
   }
 
+  // 주간/월간 소요량: 최초 출고일부터 오늘까지의 일평균 출고량을 기준으로 환산
+  function getConsumptionStats(itemId) {
+    const outs = state.movements.filter((m) => m.itemId === itemId && m.type === "출고");
+    if (outs.length === 0) return null;
+
+    const totalOut = outs.reduce((sum, m) => sum + m.qty, 0);
+    const earliestDate = outs.map((m) => m.date).sort()[0];
+    const earliest = new Date(`${earliestDate}T00:00:00`);
+    const now = new Date();
+    const days = Math.max(1, Math.round((now - earliest) / 86400000) + 1);
+    const perDay = totalOut / days;
+
+    return { weekly: perDay * 7, monthly: perDay * 30 };
+  }
+
+  function consumptionLinesHtml(itemId) {
+    const c = getConsumptionStats(itemId);
+    const fmt = (n) => `${t("approx_prefix")}${n.toFixed(1)}${t("unit_piece")}`;
+    const weeklyVal = c ? fmt(c.weekly) : "-";
+    const monthlyVal = c ? fmt(c.monthly) : "-";
+    return `
+      <div class="consumption-lines">
+        <div>${t("consumption_weekly")}: ${weeklyVal}</div>
+        <div>${t("consumption_monthly")}: ${monthlyVal}</div>
+      </div>
+    `;
+  }
+
   function statusBadgeHtml(status) {
     const key = status === "ok" ? "status_ok" : status === "warn" ? "status_warn" : "status_danger";
     return `<span class="status-badge status-${status}">${t(key)}</span>`;
@@ -904,7 +938,10 @@
       const stats = computeItemStats(item);
       const tr = document.createElement("tr");
       tr.innerHTML = `
-        <td class="item-name-cell">${photoCellHtml(item.photo)} ${escapeHtml(item.name)}</td>
+        <td class="item-name-cell">
+          <div class="item-name-row">${photoCellHtml(item.photo)}<span>${escapeHtml(item.name)}</span></div>
+          ${consumptionLinesHtml(item.id)}
+        </td>
         <td>${stats.target}</td>
         <td>${stats.totalOut}</td>
         <td>${stats.totalIn}</td>

@@ -564,11 +564,6 @@ tbody tr:hover {
   width: 8%;
 }
 
-.item-name-cell {
-  font-weight: 700;
-  color: var(--navy-800);
-}
-
 /* ---------- Date input (YYYY-MM-DD split) ---------- */
 .date-input {
   display: flex;
@@ -598,15 +593,24 @@ tbody tr:hover {
   table-layout: fixed;
 }
 
+#inventory-table th,
+#inventory-table td {
+  vertical-align: top;
+}
+
 #inventory-table th:nth-child(1),
 #inventory-table td:nth-child(1) {
-  width: 18%;
+  width: 21%;
 }
 
 #inventory-table th:nth-child(2),
 #inventory-table td:nth-child(2),
 #inventory-table th:nth-child(3),
-#inventory-table td:nth-child(3),
+#inventory-table td:nth-child(3) {
+  width: 9%;
+  text-align: center;
+}
+
 #inventory-table th:nth-child(4),
 #inventory-table td:nth-child(4),
 #inventory-table th:nth-child(5),
@@ -625,12 +629,36 @@ tbody tr:hover {
 
 #inventory-table th:nth-child(9),
 #inventory-table td:nth-child(9) {
-  width: 17%;
+  width: 16%;
 }
 
 .item-name-cell {
+  white-space: normal;
+  overflow: hidden;
+}
+
+.item-name-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 700;
+  color: var(--navy-800);
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.item-name-row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.consumption-lines {
+  margin-top: 0.3rem;
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: var(--text-muted);
+  line-height: 1.5;
 }
 
 .stock-actions {
