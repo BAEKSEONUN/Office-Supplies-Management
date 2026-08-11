@@ -606,17 +606,17 @@ tbody tr:hover {
 #inventory-table th:nth-child(2),
 #inventory-table td:nth-child(2),
 #inventory-table th:nth-child(3),
-#inventory-table td:nth-child(3) {
-  width: 8%;
-  text-align: center;
-}
-
+#inventory-table td:nth-child(3),
 #inventory-table th:nth-child(4),
 #inventory-table td:nth-child(4),
 #inventory-table th:nth-child(5),
 #inventory-table td:nth-child(5),
 #inventory-table th:nth-child(6),
-#inventory-table td:nth-child(6),
+#inventory-table td:nth-child(6) {
+  width: 8%;
+  text-align: center;
+}
+
 #inventory-table th:nth-child(8),
 #inventory-table td:nth-child(8) {
   width: 8%;
@@ -640,8 +640,7 @@ tbody tr:hover {
 .item-name-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
+  gap: 1rem;
 }
 
 .item-name-main {
@@ -653,7 +652,7 @@ tbody tr:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
-  flex: 1 1 auto;
+  flex: 0 1 auto;
 }
 
 .item-name-main span {
@@ -664,7 +663,7 @@ tbody tr:hover {
 
 .consumption-lines {
   flex: 0 0 auto;
-  text-align: right;
+  text-align: left;
   font-size: 0.72rem;
   font-weight: 400;
   color: var(--text-muted);
