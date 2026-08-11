@@ -954,6 +954,10 @@ tbody tr:hover {
   box-shadow: 0 8px 30px rgba(15, 27, 60, 0.3);
 }
 
+.edit-item-modal-box {
+  max-width: 546px;
+}
+
 .modal-box h3 {
   margin-top: 0;
   color: var(--navy-800);
