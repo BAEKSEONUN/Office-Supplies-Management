@@ -41,9 +41,9 @@ body {
 
 /* ---------- Content ---------- */
 .content {
-  max-width: 1400px;
+  max-width: 1760px;
   margin: 0 auto;
-  padding: 1.75rem 2rem 6rem;
+  padding: 1.75rem 2.5rem 6rem;
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
