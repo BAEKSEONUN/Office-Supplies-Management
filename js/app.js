@@ -72,8 +72,12 @@
     // single save (which matters a lot on a network-shared file)
     await writable.write(JSON.stringify(data));
     await writable.close();
-    const file = await fileHandle.getFile();
-    lastSeenModified = file.lastModified;
+    // Skip the extra getFile() round trip just to read back the new mtime
+    // for poll comparison (real latency on a network share, on every single
+    // save). An approximate timestamp is enough to stop this write from
+    // triggering an immediate "external change" reload of our own data; if
+    // it's slightly off, the next 5s poll just does one harmless re-read.
+    lastSeenModified = Date.now();
   }
 
   // The browser can grant "readwrite" permission on a handle while the
@@ -83,10 +87,9 @@
   // successful connection — data loads fine — until they try to save
   // something. Catch it immediately after connecting instead, with a
   // harmless round-trip write, so the person gets a clear answer up front.
-  async function testWriteAccess() {
+  async function testWriteAccess(data) {
     try {
-      const data = await readDataFile();
-      await writeDataFile(data);
+      await writeDataFile(data || (await readDataFile()));
       return true;
     } catch (err) {
       console.error("write test failed", err);
@@ -139,37 +142,12 @@
     return created;
   }
 
-  const TARGET_MIGRATION_DATE = "2026-08-11";
-
-  async function migrateTargetToInbound() {
-    const data = await readDataFile();
-    let count = 0;
-    data.items.forEach((item) => {
-      const target = Math.max(0, Number(item.target) || 0);
-      if (target > 0) {
-        data.movements.unshift({
-          id: crypto.randomUUID(),
-          itemId: item.id,
-          itemName: item.name,
-          itemUnit: item.unit || "",
-          type: "입고",
-          date: TARGET_MIGRATION_DATE,
-          qty: target,
-          recipient: t("migrate_target_recipient"),
-        });
-        count += 1;
-      }
-      item.target = 0;
-    });
-    await writeDataFile(data);
-    return count;
-  }
-
   async function loadAllFromDisk() {
     const data = await readDataFile();
     state.items = data.items;
     state.movements = data.movements;
     markUpdated();
+    return data;
   }
 
   function startPolling() {
@@ -219,7 +197,6 @@
   function updateReadOnlyUI() {
     bulkSaveBtn.disabled = state.readOnly;
     bulkMovementSaveBtn.disabled = state.readOnly;
-    document.getElementById("migrate-target-btn").disabled = state.readOnly;
     updateSelectionToolbar();
   }
 
@@ -254,14 +231,22 @@
     pendingSavedHandle = null;
     fileHandle = handle;
     await idbSet(IDB_KEY, handle);
-    await loadAllFromDisk();
-    state.readOnly = !(await testWriteAccess());
+    const data = await loadAllFromDisk();
     updateFileStatusUI();
     updateReadOnlyUI();
     hideConnectModal();
     renderInventoryTable();
     startPolling();
-    if (state.readOnly) alert(t("alert_read_only"));
+
+    // The read-only probe (a harmless round-trip write) is only there to
+    // catch the read-only-network-share edge case; it doesn't need to block
+    // the reconnect itself, so it runs after the UI is already usable.
+    testWriteAccess(data).then((ok) => {
+      state.readOnly = !ok;
+      updateFileStatusUI();
+      updateReadOnlyUI();
+      if (state.readOnly) alert(t("alert_read_only"));
+    });
   }
 
   // Silently retries the saved handle's permission using the user's next
@@ -413,10 +398,6 @@
       list_empty: "등록된 소모품이 없습니다.",
       add_row_btn: "+ 행 추가",
       bulk_save_btn: "일괄 등록",
-      migrate_target_btn: "적정재고→입고 이관",
-      migrate_target_confirm: "전 품목의 적정재고수량을 2026-08-11자 입고수량으로 이관하고, 적정재고수량을 0으로 초기화합니다. 계속하시겠습니까?",
-      migrate_target_recipient: "초기 재고 이관",
-      migrate_target_done: "{count}개 품목의 적정재고수량을 입고수량으로 이관했습니다.",
       register_h3: "소모품 등록",
       register_hint: "여러 소모품을 한 번에 등록할 수 있습니다. 사진은 선택 사항입니다.",
       close_btn: "닫기",
@@ -515,10 +496,6 @@
       list_empty: "Chưa có vật tư tiêu hao nào được đăng ký.",
       add_row_btn: "+ Thêm dòng",
       bulk_save_btn: "Đăng ký hàng loạt",
-      migrate_target_btn: "Chuyển tồn kho hợp lý → nhập kho",
-      migrate_target_confirm: "Toàn bộ số lượng tồn kho hợp lý của tất cả vật tư sẽ được chuyển thành số lượng nhập kho ngày 2026-08-11, và tồn kho hợp lý sẽ được đặt lại về 0. Bạn có muốn tiếp tục không?",
-      migrate_target_recipient: "Chuyển tồn kho ban đầu",
-      migrate_target_done: "Đã chuyển tồn kho hợp lý sang nhập kho cho {count} vật tư.",
       register_h3: "Đăng ký vật tư tiêu hao",
       register_hint: "Bạn có thể đăng ký nhiều vật tư cùng một lúc. Ảnh là tùy chọn.",
       close_btn: "Đóng",
@@ -1286,24 +1263,6 @@
     if (/[",\n]/.test(str)) return `"${str.replace(/"/g, '""')}"`;
     return str;
   }
-
-  document.getElementById("migrate-target-btn").addEventListener("click", async () => {
-    if (!(await ensureConnectedOrPrompt())) return;
-    if (!confirm(t("migrate_target_confirm"))) return;
-    const btn = document.getElementById("migrate-target-btn");
-    btn.disabled = true;
-    try {
-      const count = await migrateTargetToInbound();
-      await loadAllFromDisk();
-      renderInventoryTable();
-      alert(t("migrate_target_done", { count }));
-    } catch (err) {
-      console.error(err);
-      alert(t("alert_server_error"));
-    } finally {
-      btn.disabled = state.readOnly;
-    }
-  });
 
   document.getElementById("export-csv-btn").addEventListener("click", () => {
     const headers = [
