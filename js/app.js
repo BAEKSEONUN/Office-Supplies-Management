@@ -1011,9 +1011,11 @@
 
     const { totalIn, totalOut } = getItemTotals(editingItemId, buildMovementIndex());
     const enteredCurrent = Math.max(0, Number(editItemCurrentInput.value) || 0);
+    const safeTotalIn = Number(totalIn) || 0;
+    const safeTotalOut = Number(totalOut) || 0;
     const patch = {
       name,
-      target: Math.max(0, enteredCurrent + totalOut - totalIn),
+      target: Math.max(0, enteredCurrent + safeTotalOut - safeTotalIn),
       unit: editItemUnitInput.value.trim(),
       note: editItemNoteInput.value.trim(),
       photo: editingItemPhoto,
@@ -1070,11 +1072,18 @@
         entry = { totalIn: 0, totalOut: 0, outTotal: 0, earliestOutDate: null };
         index.set(m.itemId, entry);
       }
+      // qty is expected to already be numeric (movements are created via
+      // Number(input.value)), but coerce defensively anyway: a single
+      // string qty slipping in here (e.g. from older/hand-edited data)
+      // would turn totalIn/totalOut into string concatenation via +=,
+      // which then poisons the current-stock save math (mixed +/- on a
+      // string produces NaN, and JSON.stringify(NaN) silently writes null).
+      const qty = Number(m.qty) || 0;
       if (m.type === "입고") {
-        entry.totalIn += m.qty;
+        entry.totalIn += qty;
       } else if (m.type === "출고") {
-        entry.totalOut += m.qty;
-        entry.outTotal += m.qty;
+        entry.totalOut += qty;
+        entry.outTotal += qty;
         if (!entry.earliestOutDate || m.date < entry.earliestOutDate) entry.earliestOutDate = m.date;
       }
     });
