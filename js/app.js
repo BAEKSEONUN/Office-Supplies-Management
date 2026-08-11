@@ -17,6 +17,24 @@
   let lastSeenModified = 0;
   let pollTimer = null;
 
+  // While a local read-modify-write mutation is in flight, the background
+  // poll must not read the file and replace state.items out from under it --
+  // if the poll's read happens to resolve after our mutation's own state
+  // update but was started before our write reached disk, it would silently
+  // revert the edit on screen (the file itself stays correct, but the UI
+  // looks like the save was lost). Every mutation below increments this
+  // around its read+write, and the poll skips its tick entirely while any
+  // mutation is in flight.
+  let mutationInFlight = 0;
+  async function withMutationLock(fn) {
+    mutationInFlight++;
+    try {
+      return await fn();
+    } finally {
+      mutationInFlight--;
+    }
+  }
+
   function idbOpen() {
     return new Promise((resolve, reject) => {
       const req = indexedDB.open(IDB_NAME, 1);
@@ -72,12 +90,15 @@
     // single save (which matters a lot on a network-shared file)
     await writable.write(JSON.stringify(data));
     await writable.close();
-    // Skip the extra getFile() round trip just to read back the new mtime
-    // for poll comparison (real latency on a network share, on every single
-    // save). An approximate timestamp is enough to stop this write from
-    // triggering an immediate "external change" reload of our own data; if
-    // it's slightly off, the next 5s poll just does one harmless re-read.
-    lastSeenModified = Date.now();
+    // Don't block the caller on reading back the real mtime (that's another
+    // network round trip on a shared file, on every single save) -- fetch it
+    // in the background instead. It only needs to land before the *next*
+    // poll tick (several seconds away) to stop that tick from mistaking our
+    // own write for an external change and reloading data we already have.
+    fileHandle
+      .getFile()
+      .then((file) => { lastSeenModified = file.lastModified; })
+      .catch(() => {});
   }
 
   // The browser can grant "readwrite" permission on a handle while the
@@ -88,58 +109,62 @@
   // something. Catch it immediately after connecting instead, with a
   // harmless round-trip write, so the person gets a clear answer up front.
   async function testWriteAccess(data) {
-    try {
-      await writeDataFile(data || (await readDataFile()));
-      return true;
-    } catch (err) {
-      console.error("write test failed", err);
-      return false;
-    }
+    return withMutationLock(async () => {
+      try {
+        await writeDataFile(data || (await readDataFile()));
+        return true;
+      } catch (err) {
+        console.error("write test failed", err);
+        return false;
+      }
+    });
   }
 
   async function addItemsBulk(entries) {
-    const data = await readDataFile();
-    const created = entries.map((entry) => ({
-      id: crypto.randomUUID(),
-      name: entry.name,
-      target: Math.max(0, Number(entry.target) || 0),
-      unit: entry.unit || "",
-      note: entry.note || "",
-      photo: entry.photo || "",
-    }));
-    data.items.push(...created);
-    await writeDataFile(data);
-    return created;
-  }
-
-  async function deleteItemOnDisk(id) {
-    const data = await readDataFile();
-    data.items = data.items.filter((it) => it.id !== id);
-    await writeDataFile(data);
+    return withMutationLock(async () => {
+      const data = await readDataFile();
+      const created = entries.map((entry) => ({
+        id: crypto.randomUUID(),
+        name: entry.name,
+        target: Math.max(0, Number(entry.target) || 0),
+        unit: entry.unit || "",
+        note: entry.note || "",
+        photo: entry.photo || "",
+      }));
+      data.items.push(...created);
+      await writeDataFile(data);
+      return created;
+    });
   }
 
   async function deleteItemsBulk(ids) {
-    const idSet = new Set(ids);
-    const data = await readDataFile();
-    data.items = data.items.filter((it) => !idSet.has(it.id));
-    await writeDataFile(data);
+    return withMutationLock(async () => {
+      const idSet = new Set(ids);
+      const data = await readDataFile();
+      data.items = data.items.filter((it) => !idSet.has(it.id));
+      await writeDataFile(data);
+    });
   }
 
   async function updateItemOnDisk(id, patch) {
-    const data = await readDataFile();
-    const item = data.items.find((it) => it.id === id);
-    if (!item) throw new Error("item not found");
-    Object.assign(item, patch);
-    await writeDataFile(data);
-    return item;
+    return withMutationLock(async () => {
+      const data = await readDataFile();
+      const item = data.items.find((it) => it.id === id);
+      if (!item) throw new Error("item not found");
+      Object.assign(item, patch);
+      await writeDataFile(data);
+      return item;
+    });
   }
 
   async function addMovementsBulk(entries) {
-    const data = await readDataFile();
-    const created = entries.map((entry) => ({ id: crypto.randomUUID(), ...entry }));
-    data.movements.unshift(...created);
-    await writeDataFile(data);
-    return created;
+    return withMutationLock(async () => {
+      const data = await readDataFile();
+      const created = entries.map((entry) => ({ id: crypto.randomUUID(), ...entry }));
+      data.movements.unshift(...created);
+      await writeDataFile(data);
+      return created;
+    });
   }
 
   async function loadAllFromDisk() {
@@ -153,7 +178,7 @@
   function startPolling() {
     if (pollTimer) clearInterval(pollTimer);
     pollTimer = setInterval(async () => {
-      if (!fileHandle) return;
+      if (!fileHandle || mutationInFlight > 0) return;
       try {
         const file = await fileHandle.getFile();
         if (file.lastModified === lastSeenModified) return; // no external change
