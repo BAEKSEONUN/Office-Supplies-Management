@@ -67,7 +67,10 @@
 
   async function writeDataFile(data) {
     const writable = await fileHandle.createWritable();
-    await writable.write(JSON.stringify(data, null, 2));
+    // no pretty-printing: this file is only ever read/written by the app,
+    // and indentation used to roughly double the bytes written on every
+    // single save (which matters a lot on a network-shared file)
+    await writable.write(JSON.stringify(data));
     await writable.close();
     const file = await fileHandle.getFile();
     lastSeenModified = file.lastModified;
@@ -577,6 +580,44 @@
       : `<span class="photo-thumb-empty"></span>`;
   }
 
+  // Photos are only ever shown as small thumbnails, but an unprocessed
+  // phone photo can be several MB — and since the whole data file gets
+  // rewritten on every single save, that made every action on the shared
+  // file slow. Downscale + re-encode as JPEG before it ever gets stored.
+  const PHOTO_MAX_DIMENSION = 480;
+  const PHOTO_JPEG_QUALITY = 0.72;
+
+  function resizeImageFile(file, maxDim = PHOTO_MAX_DIMENSION, quality = PHOTO_JPEG_QUALITY) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(reader.error);
+      reader.onload = () => {
+        const img = new Image();
+        img.onerror = reject;
+        img.onload = () => {
+          let { width, height } = img;
+          if (width > maxDim || height > maxDim) {
+            if (width >= height) {
+              height = Math.round(height * (maxDim / width));
+              width = maxDim;
+            } else {
+              width = Math.round(width * (maxDim / height));
+              height = maxDim;
+            }
+          }
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL("image/jpeg", quality));
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
   // ================= Language switcher =================
   const langButtons = document.querySelectorAll(".lang-btn");
 
@@ -777,17 +818,18 @@
     `;
     bulkTbody.appendChild(tr);
 
-    tr.querySelector(".photo-input").addEventListener("change", (e) => {
+    tr.querySelector(".photo-input").addEventListener("change", async (e) => {
       const file = e.target.files[0];
       if (!file) return;
-      const reader = new FileReader();
-      reader.onload = () => {
-        bulkPhotos.set(rowId, reader.result);
+      try {
+        const dataUrl = await resizeImageFile(file);
+        bulkPhotos.set(rowId, dataUrl);
         const img = tr.querySelector(".photo-preview");
-        img.src = reader.result;
+        img.src = dataUrl;
         img.hidden = false;
-      };
-      reader.readAsDataURL(file);
+      } catch (err) {
+        console.error("photo resize failed", err);
+      }
     });
 
     tr.querySelector(".bulk-row-delete").addEventListener("click", () => {
@@ -897,16 +939,16 @@
     if (e.target === editItemModalOverlay) closeEditItemModal();
   });
 
-  editItemPhotoInput.addEventListener("change", (e) => {
+  editItemPhotoInput.addEventListener("change", async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      editingItemPhoto = reader.result;
+    try {
+      editingItemPhoto = await resizeImageFile(file);
       editItemPhotoPreview.src = editingItemPhoto;
       editItemPhotoPreview.hidden = false;
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      console.error("photo resize failed", err);
+    }
   });
 
   editItemForm.addEventListener("submit", async (e) => {
@@ -968,22 +1010,39 @@
     return items.filter((it) => it.name.toLowerCase().includes(term));
   }
 
-  function getItemTotals(itemId) {
-    let totalIn = 0;
-    let totalOut = 0;
+  // Scans state.movements exactly once and buckets running totals per item,
+  // instead of every item independently re-scanning the full movements
+  // array (that O(items × movements) pattern is what made rendering slow
+  // once the history grew — this turns it into O(items + movements)).
+  function buildMovementIndex() {
+    const index = new Map();
     state.movements.forEach((m) => {
-      if (m.itemId !== itemId) return;
-      if (m.type === "입고") totalIn += m.qty;
-      else if (m.type === "출고") totalOut += m.qty;
+      let entry = index.get(m.itemId);
+      if (!entry) {
+        entry = { totalIn: 0, totalOut: 0, outTotal: 0, earliestOutDate: null };
+        index.set(m.itemId, entry);
+      }
+      if (m.type === "입고") {
+        entry.totalIn += m.qty;
+      } else if (m.type === "출고") {
+        entry.totalOut += m.qty;
+        entry.outTotal += m.qty;
+        if (!entry.earliestOutDate || m.date < entry.earliestOutDate) entry.earliestOutDate = m.date;
+      }
     });
-    return { totalIn, totalOut };
+    return index;
+  }
+
+  function getItemTotals(itemId, movementIndex) {
+    const entry = movementIndex.get(itemId);
+    return entry ? { totalIn: entry.totalIn, totalOut: entry.totalOut } : { totalIn: 0, totalOut: 0 };
   }
 
   // 현재재고 = 적정재고수량 − 사용수량(출고) + 입고수량
   // 재고율 = 현재재고 ÷ 적정재고수량
   // 상태: 재고율 > 80% 정상, 50% < 재고율 ≤ 80% 주의, 재고율 ≤ 50% 부족
-  function computeItemStats(item) {
-    const { totalIn, totalOut } = getItemTotals(item.id);
+  function computeItemStats(item, movementIndex) {
+    const { totalIn, totalOut } = getItemTotals(item.id, movementIndex);
     const target = Math.max(0, Number(item.target) || 0);
     const current = target - totalOut + totalIn;
     const shortage = Math.max(0, target - current);
@@ -1016,23 +1075,21 @@
   // 출고량을 나눈 값. 즉 "각 주차/월마다 사용한 수량의 평균". 사용하지
   // 않은 주/월도 기간에 포함되므로, 매 입출고 등록 시 재계산되는
   // 렌더링 흐름을 그대로 타면 자동으로 최신 값이 반영된다.
-  function getConsumptionStats(itemId) {
-    const outs = state.movements.filter((m) => m.itemId === itemId && m.type === "출고");
-    if (outs.length === 0) return null;
+  function getConsumptionStats(itemId, movementIndex) {
+    const entry = movementIndex.get(itemId);
+    if (!entry || entry.outTotal === 0) return null;
 
-    const totalOut = outs.reduce((sum, m) => sum + m.qty, 0);
-    const earliestDate = outs.map((m) => m.date).sort()[0];
-    const earliest = new Date(`${earliestDate}T00:00:00`);
+    const earliest = new Date(`${entry.earliestOutDate}T00:00:00`);
     const now = new Date();
 
     const weeks = Math.max(1, countWeeksBetween(earliest, now));
     const months = Math.max(1, countMonthsBetween(earliest, now));
 
-    return { weekly: totalOut / weeks, monthly: totalOut / months };
+    return { weekly: entry.outTotal / weeks, monthly: entry.outTotal / months };
   }
 
-  function consumptionLinesHtml(itemId) {
-    const c = getConsumptionStats(itemId);
+  function consumptionLinesHtml(itemId, movementIndex) {
+    const c = getConsumptionStats(itemId, movementIndex);
     const fmt = (n) => `${t("approx_prefix")}${n.toFixed(1)}${t("unit_piece")}`;
     const weeklyVal = c ? fmt(c.weekly) : "-";
     const monthlyVal = c ? fmt(c.monthly) : "-";
@@ -1055,13 +1112,13 @@
     `;
   }
 
-  function updateStatCards() {
+  function updateStatCards(movementIndex) {
     let shortageCount = 0;
     let warningCount = 0;
     let totalShortageQty = 0;
 
     state.items.forEach((item) => {
-      const { shortage, status } = computeItemStats(item);
+      const { shortage, status } = computeItemStats(item, movementIndex);
       totalShortageQty += shortage;
       if (status === "danger") shortageCount++;
       else if (status === "warn") warningCount++;
@@ -1075,11 +1132,12 @@
   }
 
   function renderInventoryTable() {
+    const movementIndex = buildMovementIndex();
     const filtered = filterItems(state.items, state.inventorySearchTerm);
     inventoryTbody.innerHTML = "";
 
     filtered.forEach((item) => {
-      const stats = computeItemStats(item);
+      const stats = computeItemStats(item, movementIndex);
       const tr = document.createElement("tr");
       tr.dataset.id = item.id;
       tr.classList.toggle("row-selected", state.selectedItemIds.has(item.id));
@@ -1087,7 +1145,7 @@
         <td class="item-name-cell">
           <div class="item-name-row">
             <div class="item-name-main">${photoCellHtml(item.photo)}<span>${escapeHtml(item.name)}</span></div>
-            ${consumptionLinesHtml(item.id)}
+            ${consumptionLinesHtml(item.id, movementIndex)}
           </div>
         </td>
         <td>${stats.target}</td>
@@ -1127,7 +1185,7 @@
       tr.addEventListener("click", () => toggleRowSelection(tr.dataset.id));
     });
 
-    updateStatCards();
+    updateStatCards(movementIndex);
   }
 
   // ---------- 행 선택 / 선택 항목 수정·삭제 ----------
@@ -1203,8 +1261,9 @@
       t("th_status"),
     ];
 
+    const movementIndex = buildMovementIndex();
     const rows = state.items.map((item) => {
-      const s = computeItemStats(item);
+      const s = computeItemStats(item, movementIndex);
       const statusKey = s.status === "ok" ? "status_ok" : s.status === "warn" ? "status_warn" : "status_danger";
       return [item.name, s.target, s.totalOut, s.totalIn, s.current, s.shortage, `${s.ratio}%`, t(statusKey)];
     });
