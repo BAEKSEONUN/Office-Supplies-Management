@@ -510,6 +510,58 @@ tbody tr:hover {
 .bulk-item-table input[type="text"],
 .bulk-item-table input[type="number"] {
   min-width: 90px;
+  width: 100%;
+}
+
+.bulk-item-table .bulk-name {
+  min-width: 220px;
+}
+
+.bulk-item-table .bulk-note {
+  min-width: 240px;
+}
+
+.bulk-item-table .bulk-target {
+  min-width: 110px;
+}
+
+.bulk-item-table .bulk-unit {
+  min-width: 110px;
+}
+
+#bulk-item-table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+#bulk-item-table th:nth-child(1),
+#bulk-item-table td:nth-child(1) {
+  width: 15%;
+}
+
+#bulk-item-table th:nth-child(2),
+#bulk-item-table td:nth-child(2) {
+  width: 25%;
+}
+
+#bulk-item-table th:nth-child(3),
+#bulk-item-table td:nth-child(3) {
+  width: 15%;
+}
+
+#bulk-item-table th:nth-child(4),
+#bulk-item-table td:nth-child(4) {
+  width: 15%;
+}
+
+#bulk-item-table th:nth-child(5),
+#bulk-item-table td:nth-child(5) {
+  width: 22%;
+}
+
+#bulk-item-table th:nth-child(6),
+#bulk-item-table td:nth-child(6) {
+  width: 8%;
 }
 
 .item-name-cell {
@@ -806,7 +858,12 @@ tbody tr:hover {
   font-size: 1.05rem;
 }
 
-.item-modal-box,
+.item-modal-box {
+  max-width: 1500px;
+  width: 96vw;
+  padding: 2rem;
+}
+
 .movement-modal-box {
   max-width: 1080px;
   width: 94vw;
