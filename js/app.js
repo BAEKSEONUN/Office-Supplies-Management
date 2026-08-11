@@ -112,6 +112,22 @@
     await writeDataFile(data);
   }
 
+  async function deleteItemsBulk(ids) {
+    const idSet = new Set(ids);
+    const data = await readDataFile();
+    data.items = data.items.filter((it) => !idSet.has(it.id));
+    await writeDataFile(data);
+  }
+
+  async function updateItemOnDisk(id, patch) {
+    const data = await readDataFile();
+    const item = data.items.find((it) => it.id === id);
+    if (!item) throw new Error("item not found");
+    Object.assign(item, patch);
+    await writeDataFile(data);
+    return item;
+  }
+
   async function addMovementsBulk(entries) {
     const data = await readDataFile();
     const created = entries.map((entry) => ({ id: crypto.randomUUID(), ...entry }));
@@ -174,6 +190,7 @@
   function updateReadOnlyUI() {
     bulkSaveBtn.disabled = state.readOnly;
     bulkMovementSaveBtn.disabled = state.readOnly;
+    updateSelectionToolbar();
   }
 
   const reconnectSection = document.getElementById("reconnect-section");
@@ -382,6 +399,12 @@
       th_out_short: "출고",
       history_empty: "입출고 이력이 없습니다.",
       delete_btn: "삭제",
+      edit_btn: "수정",
+      edit_item_title: "소모품 수정",
+      selection_count: "{count}개 선택됨",
+      alert_select_one_to_edit: "수정할 소모품을 하나만 선택해주세요.",
+      confirm_delete_selected: "선택한 {count}개 소모품을 삭제하시겠습니까? 관련 입출고 내역은 유지됩니다.",
+      alert_item_updated: "소모품 정보가 수정되었습니다.",
       in_btn: "입고",
       out_btn: "출고",
       history_btn: "이력",
@@ -473,6 +496,12 @@
       th_out_short: "Xuất",
       history_empty: "Không có lịch sử nhập xuất.",
       delete_btn: "Xóa",
+      edit_btn: "Sửa",
+      edit_item_title: "Sửa vật tư",
+      selection_count: "Đã chọn {count} mục",
+      alert_select_one_to_edit: "Vui lòng chỉ chọn một vật tư để sửa.",
+      confirm_delete_selected: "Bạn có muốn xóa {count} vật tư đã chọn không? Lịch sử nhập xuất liên quan vẫn được giữ lại.",
+      alert_item_updated: "Đã cập nhật thông tin vật tư.",
       in_btn: "Nhập",
       out_btn: "Xuất",
       history_btn: "Lịch sử",
@@ -521,6 +550,7 @@
     lang: loadLang(),
     readOnly: false,
     lastUpdatedAt: null,
+    selectedItemIds: new Set(),
   };
 
   function t(key, vars) {
@@ -568,6 +598,7 @@
     applyMovementRowPlaceholders();
     renderInventoryTable();
     updateFileStatusUI();
+    updateSelectionToolbar();
     renderClock();
 
     const prevYear = historyYearSelect.value;
@@ -824,6 +855,98 @@
     }
   });
 
+  // ---------- 소모품 수정 모달 ----------
+  const editItemModalOverlay = document.getElementById("edit-item-modal-overlay");
+  const editItemForm = document.getElementById("edit-item-form");
+  const editItemPhotoInput = document.getElementById("edit-item-photo");
+  const editItemPhotoPreview = document.getElementById("edit-item-photo-preview");
+  const editItemNameInput = document.getElementById("edit-item-name");
+  const editItemTargetInput = document.getElementById("edit-item-target");
+  const editItemUnitInput = document.getElementById("edit-item-unit");
+  const editItemNoteInput = document.getElementById("edit-item-note");
+  const editItemCloseBtn = document.getElementById("edit-item-close");
+  const editItemSaveBtn = document.getElementById("edit-item-save");
+
+  let editingItemId = null;
+  let editingItemPhoto = "";
+
+  function openEditItemModal(item) {
+    editingItemId = item.id;
+    editingItemPhoto = item.photo || "";
+    editItemNameInput.value = item.name;
+    editItemTargetInput.value = item.target || 0;
+    editItemUnitInput.value = item.unit || "";
+    editItemNoteInput.value = item.note || "";
+    editItemPhotoInput.value = "";
+    if (editingItemPhoto) {
+      editItemPhotoPreview.src = editingItemPhoto;
+      editItemPhotoPreview.hidden = false;
+    } else {
+      editItemPhotoPreview.hidden = true;
+    }
+    editItemModalOverlay.hidden = false;
+  }
+
+  function closeEditItemModal() {
+    editItemModalOverlay.hidden = true;
+    editingItemId = null;
+  }
+
+  editItemCloseBtn.addEventListener("click", closeEditItemModal);
+  editItemModalOverlay.addEventListener("click", (e) => {
+    if (e.target === editItemModalOverlay) closeEditItemModal();
+  });
+
+  editItemPhotoInput.addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      editingItemPhoto = reader.result;
+      editItemPhotoPreview.src = editingItemPhoto;
+      editItemPhotoPreview.hidden = false;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  editItemForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (!editingItemId) return;
+
+    const name = editItemNameInput.value.trim();
+    if (!name) {
+      alert(t("alert_need_name"));
+      return;
+    }
+
+    if (!(await ensureConnectedOrPrompt())) return;
+
+    const patch = {
+      name,
+      target: Math.max(0, Number(editItemTargetInput.value) || 0),
+      unit: editItemUnitInput.value.trim(),
+      note: editItemNoteInput.value.trim(),
+      photo: editingItemPhoto,
+    };
+
+    editItemSaveBtn.disabled = true;
+    try {
+      await updateItemOnDisk(editingItemId, patch);
+      const item = state.items.find((it) => it.id === editingItemId);
+      if (item) Object.assign(item, patch);
+      markUpdated();
+      closeEditItemModal();
+      clearSelection();
+      renderInventoryTable();
+      alert(t("alert_item_updated"));
+    } catch (err) {
+      console.error(err);
+      alert(t("alert_server_error"));
+    } finally {
+      editItemSaveBtn.disabled = state.readOnly;
+    }
+  });
+
   // ================= 소모품 재고 대시보드 =================
   const inventorySearchInput = document.getElementById("inventory-search");
   const inventoryTbody = document.getElementById("inventory-tbody");
@@ -914,10 +1037,7 @@
     const weeklyVal = c ? fmt(c.weekly) : "-";
     const monthlyVal = c ? fmt(c.monthly) : "-";
     return `
-      <div class="consumption-lines">
-        <div>${t("consumption_weekly")}: ${weeklyVal}</div>
-        <div>${t("consumption_monthly")}: ${monthlyVal}</div>
-      </div>
+      <div class="consumption-lines">${t("consumption_weekly")} : ${weeklyVal} / ${t("consumption_monthly")} : ${monthlyVal}</div>
     `;
   }
 
@@ -961,6 +1081,8 @@
     filtered.forEach((item) => {
       const stats = computeItemStats(item);
       const tr = document.createElement("tr");
+      tr.dataset.id = item.id;
+      tr.classList.toggle("row-selected", state.selectedItemIds.has(item.id));
       tr.innerHTML = `
         <td class="item-name-cell">
           <div class="item-name-row">
@@ -980,7 +1102,6 @@
             <button type="button" class="stock-in-btn" data-id="${item.id}" data-type="입고" ${state.readOnly ? "disabled" : ""}>${t("in_btn")}</button>
             <button type="button" class="stock-out-btn" data-id="${item.id}" data-type="출고" ${state.readOnly ? "disabled" : ""}>${t("out_btn")}</button>
             <button type="button" class="stock-history-btn" data-id="${item.id}">${t("history_btn")}</button>
-            <button type="button" class="delete-btn" data-id="${item.id}" ${state.readOnly ? "disabled" : ""}>✕</button>
           </div>
         </td>
       `;
@@ -990,34 +1111,78 @@
     inventoryEmptyMsg.hidden = filtered.length !== 0;
 
     inventoryTbody.querySelectorAll(".stock-in-btn, .stock-out-btn").forEach((btn) => {
-      btn.addEventListener("click", async () => {
+      btn.addEventListener("click", async (e) => {
+        e.stopPropagation();
         if (!(await ensureConnectedOrPrompt())) return;
         openMovementModal({ itemId: btn.dataset.id, type: btn.dataset.type });
       });
     });
     inventoryTbody.querySelectorAll(".stock-history-btn").forEach((btn) => {
-      btn.addEventListener("click", () => openHistoryModal(btn.dataset.id));
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        openHistoryModal(btn.dataset.id);
+      });
     });
-    inventoryTbody.querySelectorAll(".delete-btn").forEach((btn) => {
-      btn.addEventListener("click", () => deleteItem(btn.dataset.id));
+    inventoryTbody.querySelectorAll("tr").forEach((tr) => {
+      tr.addEventListener("click", () => toggleRowSelection(tr.dataset.id));
     });
 
     updateStatCards();
   }
 
-  async function deleteItem(id) {
+  // ---------- 행 선택 / 선택 항목 수정·삭제 ----------
+  const selectionToolbar = document.getElementById("selection-toolbar");
+  const selectionCountText = document.getElementById("selection-count-text");
+  const selectionEditBtn = document.getElementById("selection-edit-btn");
+  const selectionDeleteBtn = document.getElementById("selection-delete-btn");
+
+  function toggleRowSelection(id) {
+    if (state.selectedItemIds.has(id)) state.selectedItemIds.delete(id);
+    else state.selectedItemIds.add(id);
+    renderInventoryTable();
+    updateSelectionToolbar();
+  }
+
+  function clearSelection() {
+    state.selectedItemIds.clear();
+    updateSelectionToolbar();
+  }
+
+  function updateSelectionToolbar() {
+    const count = state.selectedItemIds.size;
+    selectionToolbar.hidden = count === 0;
+    selectionCountText.textContent = t("selection_count", { count });
+    selectionEditBtn.disabled = count !== 1 || state.readOnly;
+    selectionDeleteBtn.disabled = count === 0 || state.readOnly;
+  }
+
+  selectionDeleteBtn.addEventListener("click", async () => {
     if (!(await ensureConnectedOrPrompt())) return;
-    if (!confirm(t("confirm_delete_item"))) return;
+    const ids = Array.from(state.selectedItemIds);
+    if (ids.length === 0) return;
+    if (!confirm(t("confirm_delete_selected", { count: ids.length }))) return;
     try {
-      await deleteItemOnDisk(id);
-      state.items = state.items.filter((it) => it.id !== id);
+      await deleteItemsBulk(ids);
+      state.items = state.items.filter((it) => !state.selectedItemIds.has(it.id));
       markUpdated();
+      clearSelection();
       renderInventoryTable();
     } catch (err) {
       console.error(err);
       alert(t("alert_server_error"));
     }
-  }
+  });
+
+  selectionEditBtn.addEventListener("click", async () => {
+    if (state.selectedItemIds.size !== 1) {
+      alert(t("alert_select_one_to_edit"));
+      return;
+    }
+    if (!(await ensureConnectedOrPrompt())) return;
+    const id = Array.from(state.selectedItemIds)[0];
+    const item = state.items.find((it) => it.id === id);
+    if (item) openEditItemModal(item);
+  });
 
   // ================= CSV(엑셀) 다운로드 =================
   function csvEscape(value) {

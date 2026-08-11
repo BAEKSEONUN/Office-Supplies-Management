@@ -60,9 +60,17 @@
           </div>
         </div>
 
+        <div id="selection-toolbar" class="selection-toolbar" hidden>
+          <span id="selection-count-text">0개 선택됨</span>
+          <div class="selection-toolbar-actions">
+            <button type="button" id="selection-edit-btn" class="secondary-btn" data-i18n="edit_btn">수정</button>
+            <button type="button" id="selection-delete-btn" class="danger-btn" data-i18n="delete_btn">삭제</button>
+          </div>
+        </div>
+
         <input type="text" id="inventory-search" class="search-box" data-i18n-placeholder="search_placeholder" placeholder="품목명으로 검색...">
 
-        <div class="table-wrap">
+        <div class="table-wrap" id="inventory-table-wrap">
           <table id="inventory-table">
             <thead>
               <tr>
@@ -128,6 +136,40 @@
         <button type="button" id="bulk-save-btn" data-i18n="bulk_save_btn">일괄 등록</button>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- 소모품 수정 모달 -->
+<div id="edit-item-modal-overlay" class="modal-overlay" hidden>
+  <div class="modal-box">
+    <h3 data-i18n="edit_item_title">소모품 수정</h3>
+    <form id="edit-item-form" class="form-grid">
+      <label class="full">
+        <span data-i18n="th_photo">사진</span>
+        <input type="file" accept="image/*" id="edit-item-photo">
+        <img id="edit-item-photo-preview" class="photo-preview" hidden alt="">
+      </label>
+      <label class="full">
+        <span data-i18n="th_name">품목명</span> <span class="required">*</span>
+        <input type="text" id="edit-item-name" required>
+      </label>
+      <label>
+        <span data-i18n="th_target">적정재고수량</span>
+        <input type="number" id="edit-item-target" min="0" step="1">
+      </label>
+      <label>
+        <span data-i18n="th_unit">단위</span>
+        <input type="text" id="edit-item-unit">
+      </label>
+      <label class="full">
+        <span data-i18n="th_note">비고</span>
+        <input type="text" id="edit-item-note">
+      </label>
+      <div class="form-actions between full">
+        <button type="button" id="edit-item-close" class="secondary-btn" data-i18n="close_btn">닫기</button>
+        <button type="submit" id="edit-item-save" data-i18n="save_btn">저장</button>
+      </div>
+    </form>
   </div>
 </div>
 

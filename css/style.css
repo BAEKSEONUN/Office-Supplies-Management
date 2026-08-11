@@ -414,6 +414,19 @@ button:disabled {
   overflow-x: auto;
 }
 
+#inventory-table-wrap {
+  overflow-y: auto;
+  max-height: 560px;
+}
+
+#inventory-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--card-bg);
+  box-shadow: 0 1px 0 var(--border);
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
@@ -437,6 +450,50 @@ th {
 
 tbody tr:hover {
   background: #f7f9fd;
+}
+
+#inventory-tbody tr {
+  cursor: pointer;
+}
+
+#inventory-tbody tr.row-selected {
+  background: #dceafe;
+}
+
+#inventory-tbody tr.row-selected:hover {
+  background: #cfe1fb;
+}
+
+.selection-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #eef4fd;
+  border: 1px solid #bcd6f7;
+  border-radius: 8px;
+  padding: 0.6rem 1rem;
+  margin-bottom: 0.9rem;
+  font-size: 0.85rem;
+  color: var(--navy-700);
+  font-weight: 600;
+}
+
+.selection-toolbar[hidden] {
+  display: none;
+}
+
+.selection-toolbar-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.danger-btn {
+  background: var(--danger);
+  color: #fff;
+}
+
+.danger-btn:hover:not(:disabled) {
+  background: #b93a31;
 }
 
 .delete-btn {
@@ -613,7 +670,7 @@ tbody tr:hover {
 
 #inventory-table th:nth-child(1),
 #inventory-table td:nth-child(1) {
-  width: 17%;
+  width: 23%;
 }
 
 #inventory-table th:nth-child(2),
@@ -630,6 +687,14 @@ tbody tr:hover {
   text-align: center;
 }
 
+#inventory-table td:nth-child(2),
+#inventory-table td:nth-child(3),
+#inventory-table td:nth-child(4),
+#inventory-table td:nth-child(5),
+#inventory-table td:nth-child(6) {
+  vertical-align: middle;
+}
+
 #inventory-table th:nth-child(8),
 #inventory-table td:nth-child(8) {
   width: 8%;
@@ -642,7 +707,7 @@ tbody tr:hover {
 
 #inventory-table th:nth-child(9),
 #inventory-table td:nth-child(9) {
-  width: 20%;
+  width: 14%;
 }
 
 .item-name-cell {
@@ -689,12 +754,13 @@ tbody tr:hover {
 .stock-actions {
   display: flex;
   flex-wrap: nowrap;
-  gap: 0.25rem;
+  gap: 0.2rem;
+  width: 70%;
 }
 
 .stock-actions button {
   flex: 1 1 auto;
-  padding: 0.35rem 0.25rem;
+  padding: 0.35rem 0.2rem;
   font-size: 0.66rem;
   white-space: nowrap;
   line-height: 1.2;
@@ -725,11 +791,6 @@ tbody tr:hover {
 
 .stock-history-btn:hover:not(:disabled) {
   background: #eef1f9;
-}
-
-.stock-actions .delete-btn {
-  flex: 0 0 auto;
-  min-width: 2.2rem;
 }
 
 /* ---------- Inventory table specifics ---------- */
