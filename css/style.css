@@ -124,10 +124,13 @@ body {
   background: rgba(255, 255, 255, 0.1);
   color: #dbe2f5;
   border: 1px solid rgba(255, 255, 255, 0.25);
-  padding: 0.35rem 0.7rem;
+  padding: 0.35rem 0.9rem;
   font-size: 0.75rem;
   font-weight: 600;
   border-radius: 6px;
+  min-width: 6.5rem;
+  text-align: center;
+  white-space: nowrap;
 }
 
 .banner-lang-switch .lang-btn:hover:not(:disabled) {
@@ -610,7 +613,7 @@ tbody tr:hover {
 
 #inventory-table th:nth-child(1),
 #inventory-table td:nth-child(1) {
-  width: 20%;
+  width: 17%;
 }
 
 #inventory-table th:nth-child(2),
@@ -634,12 +637,12 @@ tbody tr:hover {
 
 #inventory-table th:nth-child(7),
 #inventory-table td:nth-child(7) {
-  width: 11%;
+  width: 10%;
 }
 
 #inventory-table th:nth-child(9),
 #inventory-table td:nth-child(9) {
-  width: 16%;
+  width: 20%;
 }
 
 .item-name-cell {
@@ -685,17 +688,17 @@ tbody tr:hover {
 
 .stock-actions {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.3rem;
+  flex-wrap: nowrap;
+  gap: 0.25rem;
 }
 
 .stock-actions button {
   flex: 1 1 auto;
-  padding: 0.35rem 0.3rem;
-  font-size: 0.7rem;
-  white-space: normal;
+  padding: 0.35rem 0.25rem;
+  font-size: 0.66rem;
+  white-space: nowrap;
   line-height: 1.2;
-  min-width: 2.6rem;
+  min-width: 0;
 }
 
 .stock-in-btn {
