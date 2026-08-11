@@ -232,21 +232,42 @@
     fileHandle = handle;
     await idbSet(IDB_KEY, handle);
     const data = await loadAllFromDisk();
+    // Write-access probe must finish (and must not race any later edit)
+    // before the UI is usable, otherwise this stale snapshot can land on
+    // disk after a real edit and silently overwrite it. Reusing the data
+    // already read above still saves one network round trip vs. before.
+    state.readOnly = !(await testWriteAccess(data));
     updateFileStatusUI();
     updateReadOnlyUI();
     hideConnectModal();
     renderInventoryTable();
     startPolling();
+    if (state.readOnly) alert(t("alert_read_only"));
+  }
 
-    // The read-only probe (a harmless round-trip write) is only there to
-    // catch the read-only-network-share edge case; it doesn't need to block
-    // the reconnect itself, so it runs after the UI is already usable.
-    testWriteAccess(data).then((ok) => {
-      state.readOnly = !ok;
-      updateFileStatusUI();
-      updateReadOnlyUI();
-      if (state.readOnly) alert(t("alert_read_only"));
+  // Both the auto-reconnect listener below and ensureConnectedOrPrompt() can
+  // be triggered by the very same click (pointerdown capture fires first,
+  // then the click handler that calls ensureConnectedOrPrompt). Without this
+  // guard they could both call finishConnect() with the same handle at once,
+  // firing two concurrent writes to the same file.
+  let savedHandleReconnectPromise = null;
+
+  function reconnectSavedHandle(handle) {
+    if (savedHandleReconnectPromise) return savedHandleReconnectPromise;
+    savedHandleReconnectPromise = (async () => {
+      try {
+        if (await ensureReadWritePermission(handle)) {
+          await finishConnect(handle);
+          return true;
+        }
+      } catch (err) {
+        console.error(err);
+      }
+      return false;
+    })().finally(() => {
+      savedHandleReconnectPromise = null;
     });
+    return savedHandleReconnectPromise;
   }
 
   // Silently retries the saved handle's permission using the user's next
@@ -256,17 +277,10 @@
     const attempt = async () => {
       if (fileHandle || !pendingSavedHandle) return;
       const handle = pendingSavedHandle;
-      try {
-        if (await ensureReadWritePermission(handle)) {
-          await finishConnect(handle);
-          return;
-        }
-      } catch (err) {
-        console.error(err);
-      }
+      if (await reconnectSavedHandle(handle)) return;
       // the quiet attempt genuinely failed (e.g. permission denied, file
       // moved/deleted) -- fall back to the explicit reconnect prompt
-      showConnectModal(handle);
+      if (!fileHandle) showConnectModal(handle);
     };
     document.addEventListener("pointerdown", attempt, { capture: true, once: true });
   }
@@ -278,15 +292,9 @@
     if (fileHandle) return true;
     if (pendingSavedHandle) {
       const handle = pendingSavedHandle;
-      try {
-        if (await ensureReadWritePermission(handle)) {
-          await finishConnect(handle);
-          return true;
-        }
-      } catch (err) {
-        console.error(err);
-      }
+      if (await reconnectSavedHandle(handle)) return true;
     }
+    if (fileHandle) return true;
     showConnectModal(pendingSavedHandle || undefined);
     return false;
   }
