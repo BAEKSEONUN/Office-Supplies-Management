@@ -870,6 +870,29 @@
   }
 
   // 주간/월간 소요량: 최초 출고일부터 오늘까지의 일평균 출고량을 기준으로 환산
+  // Monday-start-of-week, used to bucket 출고 records into calendar weeks.
+  function startOfWeek(d) {
+    const monday = new Date(d);
+    const day = monday.getDay(); // 0 = Sun
+    const diffToMonday = day === 0 ? 6 : day - 1;
+    monday.setDate(monday.getDate() - diffToMonday);
+    monday.setHours(0, 0, 0, 0);
+    return monday;
+  }
+
+  function countWeeksBetween(start, end) {
+    const msPerWeek = 7 * 24 * 60 * 60 * 1000;
+    return Math.round((startOfWeek(end) - startOfWeek(start)) / msPerWeek) + 1;
+  }
+
+  function countMonthsBetween(start, end) {
+    return (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1;
+  }
+
+  // 주간/월간 사용량 = 최초 출고일부터 오늘까지 걸친 주/월 개수로 총
+  // 출고량을 나눈 값. 즉 "각 주차/월마다 사용한 수량의 평균". 사용하지
+  // 않은 주/월도 기간에 포함되므로, 매 입출고 등록 시 재계산되는
+  // 렌더링 흐름을 그대로 타면 자동으로 최신 값이 반영된다.
   function getConsumptionStats(itemId) {
     const outs = state.movements.filter((m) => m.itemId === itemId && m.type === "출고");
     if (outs.length === 0) return null;
@@ -878,10 +901,11 @@
     const earliestDate = outs.map((m) => m.date).sort()[0];
     const earliest = new Date(`${earliestDate}T00:00:00`);
     const now = new Date();
-    const days = Math.max(1, Math.round((now - earliest) / 86400000) + 1);
-    const perDay = totalOut / days;
 
-    return { weekly: perDay * 7, monthly: perDay * 30 };
+    const weeks = Math.max(1, countWeeksBetween(earliest, now));
+    const months = Math.max(1, countMonthsBetween(earliest, now));
+
+    return { weekly: totalOut / weeks, monthly: totalOut / months };
   }
 
   function consumptionLinesHtml(itemId) {
