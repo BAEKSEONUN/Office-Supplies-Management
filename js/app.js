@@ -539,17 +539,6 @@
       : `<span class="photo-thumb-empty"></span>`;
   }
 
-  // ================= Navigation =================
-  const navButtons = document.querySelectorAll(".nav-btn");
-  navButtons.forEach((btn) => {
-    btn.addEventListener("click", () => {
-      navButtons.forEach((b) => b.classList.remove("active"));
-      document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
-      btn.classList.add("active");
-      document.getElementById(`view-${btn.dataset.view}`).classList.add("active");
-    });
-  });
-
   // ================= Language switcher =================
   const langButtons = document.querySelectorAll(".lang-btn");
 

@@ -8,21 +8,6 @@
 </head>
 <body>
 <div class="app-shell">
-  <aside class="sidebar">
-    <div class="sidebar-header">QL VPP</div>
-    <div class="lang-switch">
-      <button type="button" class="lang-btn" data-lang="ko">한국어</button>
-      <button type="button" class="lang-btn" data-lang="vi">Tiếng Việt</button>
-    </div>
-    <nav class="sidebar-nav">
-      <button type="button" class="nav-btn active" data-view="dashboard" data-i18n="nav_dashboard">재고 관리</button>
-    </nav>
-    <div class="file-status">
-      <span id="file-status-text">데이터 파일 연결 안 됨</span>
-      <button type="button" id="file-change-btn" class="secondary-btn" data-i18n="file_change_btn">변경</button>
-    </div>
-  </aside>
-
   <main class="content">
 
     <!-- 소모품 재고관리 대시보드 -->
@@ -32,7 +17,6 @@
         <div class="banner-main">
           <p class="banner-eyebrow" data-i18n="banner_eyebrow">INVENTORY CONTROL · 재고관리</p>
           <h1 class="banner-title" data-i18n="banner_title">소모품 재고관리 대시보드</h1>
-          <p class="banner-subtitle" data-i18n="banner_subtitle">적정재고 대비 재고율이 50% 이하로 떨어지면 자동으로 부족 상태가 표시됩니다.</p>
         </div>
         <div class="banner-meta">
           <div class="banner-clock">
@@ -41,6 +25,10 @@
           </div>
           <p class="banner-updated"><span data-i18n="banner_updated_label">마지막 업데이트</span>: <span id="banner-updated-at">-</span></p>
           <p class="banner-live" data-i18n="banner_live">REAL-TIME TRACKING</p>
+        </div>
+        <div class="banner-lang-switch">
+          <button type="button" class="lang-btn" data-lang="ko">한국어</button>
+          <button type="button" class="lang-btn" data-lang="vi">Tiếng Việt</button>
         </div>
       </header>
 
@@ -106,6 +94,12 @@
     </section>
 
   </main>
+</div>
+
+<!-- 데이터 파일 연결 상태 (화면 우측 하단 고정) -->
+<div class="file-status-widget">
+  <span id="file-status-text">데이터 파일 연결 안 됨</span>
+  <button type="button" id="file-change-btn" class="secondary-btn" data-i18n="file_change_btn">변경</button>
 </div>
 
 <!-- 소모품 등록 모달 -->
