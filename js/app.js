@@ -338,8 +338,8 @@
       unit_case: "건",
       unit_piece: "개",
       approx_prefix: "약 ",
-      consumption_weekly: "주간 소요량",
-      consumption_monthly: "월간 소요량",
+      consumption_weekly: "주간 사용량",
+      consumption_monthly: "월간 사용량",
       inventory_title: "소모품 목록",
       add_item_btn: "+ 품목 추가",
       bulk_movement_btn: "입출고 일괄 등록",
@@ -939,8 +939,10 @@
       const tr = document.createElement("tr");
       tr.innerHTML = `
         <td class="item-name-cell">
-          <div class="item-name-row">${photoCellHtml(item.photo)}<span>${escapeHtml(item.name)}</span></div>
-          ${consumptionLinesHtml(item.id)}
+          <div class="item-name-row">
+            <div class="item-name-main">${photoCellHtml(item.photo)}<span>${escapeHtml(item.name)}</span></div>
+            ${consumptionLinesHtml(item.id)}
+          </div>
         </td>
         <td>${stats.target}</td>
         <td>${stats.totalOut}</td>

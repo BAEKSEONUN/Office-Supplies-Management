@@ -600,14 +600,14 @@ tbody tr:hover {
 
 #inventory-table th:nth-child(1),
 #inventory-table td:nth-child(1) {
-  width: 21%;
+  width: 26%;
 }
 
 #inventory-table th:nth-child(2),
 #inventory-table td:nth-child(2),
 #inventory-table th:nth-child(3),
 #inventory-table td:nth-child(3) {
-  width: 9%;
+  width: 8%;
   text-align: center;
 }
 
@@ -619,17 +619,17 @@ tbody tr:hover {
 #inventory-table td:nth-child(6),
 #inventory-table th:nth-child(8),
 #inventory-table td:nth-child(8) {
-  width: 9%;
+  width: 8%;
 }
 
 #inventory-table th:nth-child(7),
 #inventory-table td:nth-child(7) {
-  width: 13%;
+  width: 12%;
 }
 
 #inventory-table th:nth-child(9),
 #inventory-table td:nth-child(9) {
-  width: 16%;
+  width: 14%;
 }
 
 .item-name-cell {
@@ -640,25 +640,36 @@ tbody tr:hover {
 .item-name-row {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.item-name-main {
+  display: flex;
+  align-items: center;
   gap: 0.5rem;
   font-weight: 700;
   color: var(--navy-800);
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
-.item-name-row span {
+.item-name-main span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .consumption-lines {
-  margin-top: 0.3rem;
+  flex: 0 0 auto;
+  text-align: right;
   font-size: 0.72rem;
   font-weight: 400;
   color: var(--text-muted);
   line-height: 1.5;
+  white-space: nowrap;
 }
 
 .stock-actions {
