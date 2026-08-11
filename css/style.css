@@ -581,10 +581,6 @@ tbody tr:hover {
   min-width: 240px;
 }
 
-.bulk-item-table .bulk-target {
-  min-width: 110px;
-}
-
 .bulk-item-table .bulk-unit {
   min-width: 110px;
 }
@@ -601,7 +597,7 @@ tbody tr:hover {
 
 #bulk-item-table th:nth-child(2),
 #bulk-item-table td:nth-child(2) {
-  width: 25%;
+  width: 32%;
 }
 
 #bulk-item-table th:nth-child(3),
@@ -611,16 +607,11 @@ tbody tr:hover {
 
 #bulk-item-table th:nth-child(4),
 #bulk-item-table td:nth-child(4) {
-  width: 15%;
+  width: 30%;
 }
 
 #bulk-item-table th:nth-child(5),
 #bulk-item-table td:nth-child(5) {
-  width: 22%;
-}
-
-#bulk-item-table th:nth-child(6),
-#bulk-item-table td:nth-child(6) {
   width: 8%;
 }
 

@@ -771,7 +771,6 @@
         <img class="photo-preview" data-row-id="${rowId}" hidden alt="">
       </td>
       <td><input type="text" class="bulk-name" placeholder="${t("th_name")}"></td>
-      <td><input type="number" class="bulk-target" min="0" step="1" value="0"></td>
       <td><input type="text" class="bulk-unit" placeholder="${t("th_unit")}"></td>
       <td><input type="text" class="bulk-note" placeholder="${t("th_note")}"></td>
       <td><button type="button" class="delete-btn bulk-row-delete">${t("delete_btn")}</button></td>
@@ -826,7 +825,6 @@
 
       payload.push({
         name,
-        target: tr.querySelector(".bulk-target").value,
         unit: tr.querySelector(".bulk-unit").value.trim(),
         note: tr.querySelector(".bulk-note").value.trim(),
         photo: bulkPhotos.get(tr.dataset.rowId) || "",
