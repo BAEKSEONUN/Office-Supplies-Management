@@ -567,22 +567,10 @@ tbody tr:hover {
   flex-shrink: 0;
 }
 
-.bulk-item-table input[type="text"],
-.bulk-item-table input[type="number"] {
-  min-width: 90px;
+#bulk-item-table input[type="text"],
+#bulk-item-table input[type="number"] {
+  min-width: 0;
   width: 100%;
-}
-
-.bulk-item-table .bulk-name {
-  min-width: 220px;
-}
-
-.bulk-item-table .bulk-current {
-  min-width: 140px;
-}
-
-.bulk-item-table .bulk-unit {
-  min-width: 110px;
 }
 
 #bulk-item-table {
@@ -592,27 +580,27 @@ tbody tr:hover {
 
 #bulk-item-table th:nth-child(1),
 #bulk-item-table td:nth-child(1) {
-  width: 15%;
+  width: 150px;
 }
 
 #bulk-item-table th:nth-child(2),
 #bulk-item-table td:nth-child(2) {
-  width: 32%;
+  width: 220px;
 }
 
 #bulk-item-table th:nth-child(3),
 #bulk-item-table td:nth-child(3) {
-  width: 15%;
+  width: 140px;
 }
 
 #bulk-item-table th:nth-child(4),
 #bulk-item-table td:nth-child(4) {
-  width: 30%;
+  width: 170px;
 }
 
 #bulk-item-table th:nth-child(5),
 #bulk-item-table td:nth-child(5) {
-  width: 8%;
+  width: 100px;
 }
 
 /* ---------- Date input (YYYY-MM-DD split) ---------- */
@@ -915,6 +903,11 @@ tbody tr:hover {
   min-width: 130px;
 }
 
+.movement-qty {
+  width: 132px;
+  min-width: 0;
+}
+
 /* ---------- Consumption cycle (kept for reference in history) ---------- */
 .consumption-none {
   color: var(--text-muted);
@@ -954,25 +947,9 @@ tbody tr:hover {
   color: var(--navy-800);
 }
 
-.stock-modal-box {
-  max-width: 600px;
-  padding: 2rem;
-}
-
-.stock-modal-box .form-grid {
-  gap: 1.3rem 1.6rem;
-}
-
-.stock-modal-box input[type="number"],
-.stock-modal-box input[type="text"],
-.stock-modal-box .date-input input {
-  padding: 0.7rem 0.8rem;
-  font-size: 1.05rem;
-}
-
 .item-modal-box {
-  max-width: 1500px;
-  width: 96vw;
+  max-width: 820px;
+  width: 92vw;
   padding: 2rem;
 }
 

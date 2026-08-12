@@ -1641,8 +1641,12 @@
           const entry = entries[k];
           const tr = document.createElement("tr");
           const dateCell = k === i ? `<td rowspan="${groupSize}" class="history-date-cell">${escapeHtml(date)}</td>` : "";
-          const inCell = entry.type === "입고" ? escapeHtml(String(entry.qty)) : "-";
-          const outCell = entry.type === "출고" ? escapeHtml(String(entry.qty)) : "-";
+          // Current-stock corrections (isAdjustment) change the stock number
+          // itself but aren't a real 입고/출고 event, so they show no
+          // quantity here -- only the 비고 label ("현재재고 직접 수정") marks
+          // that the row happened.
+          const inCell = !entry.isAdjustment && entry.type === "입고" ? escapeHtml(String(entry.qty)) : "-";
+          const outCell = !entry.isAdjustment && entry.type === "출고" ? escapeHtml(String(entry.qty)) : "-";
           tr.innerHTML = `
             ${dateCell}
             <td>${inCell}</td>
