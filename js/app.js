@@ -188,6 +188,32 @@
     });
   }
 
+  // One-time bulk cleanup for photos that were stored before the stronger
+  // compression settings above existed -- new uploads already get the
+  // smaller size, but photos already sitting in the shared file need to be
+  // re-processed explicitly since nothing re-touches them on its own.
+  async function recompressAllPhotos() {
+    return withMutationLock(async () => {
+      const data = await readDataFile();
+      let count = 0;
+      let beforeBytes = 0;
+      let afterBytes = 0;
+      for (const item of data.items) {
+        if (!item.photo) continue;
+        beforeBytes += item.photo.length;
+        try {
+          item.photo = await resizeDataUrl(item.photo);
+          count++;
+        } catch (err) {
+          console.error("recompress failed for item", item.id, err);
+        }
+        afterBytes += item.photo.length;
+      }
+      await writeDataFile(data);
+      return { count, beforeBytes, afterBytes };
+    });
+  }
+
   async function loadAllFromDisk() {
     const data = await readDataFile();
     state.items = data.items;
@@ -243,6 +269,7 @@
   function updateReadOnlyUI() {
     bulkSaveBtn.disabled = state.readOnly;
     bulkMovementSaveBtn.disabled = state.readOnly;
+    document.getElementById("recompress-photos-btn").disabled = state.readOnly;
     updateSelectionToolbar();
   }
 
@@ -428,6 +455,9 @@
       consumption_monthly: "월간 사용량",
       inventory_title: "소모품 목록",
       add_item_btn: "+ 품목 추가",
+      recompress_photos_btn: "사진 압축",
+      recompress_photos_confirm: "등록된 모든 소모품 사진을 다시 압축합니다. 계속하시겠습니까?",
+      recompress_photos_done: "{count}개 사진을 압축했습니다. (약 {beforeKb}KB → {afterKb}KB)",
       bulk_movement_btn: "입출고 일괄 등록",
       export_btn: "↓ 엑셀 다운로드",
       search_placeholder: "품목명으로 검색...",
@@ -527,6 +557,9 @@
       consumption_monthly: "Tiêu thụ/tháng",
       inventory_title: "Danh sách vật tư",
       add_item_btn: "+ Thêm mặt hàng",
+      recompress_photos_btn: "Nén ảnh",
+      recompress_photos_confirm: "Tất cả ảnh vật tư đã đăng ký sẽ được nén lại. Bạn có muốn tiếp tục không?",
+      recompress_photos_done: "Đã nén {count} ảnh. (khoảng {beforeKb}KB → {afterKb}KB)",
       bulk_movement_btn: "Đăng ký nhập xuất hàng loạt",
       export_btn: "↓ Tải Excel",
       search_placeholder: "Tìm theo tên vật tư...",
@@ -658,33 +691,39 @@
   const PHOTO_MAX_DIMENSION = 120;
   const PHOTO_JPEG_QUALITY = 0.6;
 
+  // Shared by both the upload path (resizeImageFile) and the "recompress
+  // already-stored photos" bulk action (recompressAllPhotos) below.
+  function resizeDataUrl(dataUrl, maxDim = PHOTO_MAX_DIMENSION, quality = PHOTO_JPEG_QUALITY) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onerror = reject;
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          if (width >= height) {
+            height = Math.round(height * (maxDim / width));
+            width = maxDim;
+          } else {
+            width = Math.round(width * (maxDim / height));
+            height = maxDim;
+          }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+      img.src = dataUrl;
+    });
+  }
+
   function resizeImageFile(file, maxDim = PHOTO_MAX_DIMENSION, quality = PHOTO_JPEG_QUALITY) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onerror = () => reject(reader.error);
-      reader.onload = () => {
-        const img = new Image();
-        img.onerror = reject;
-        img.onload = () => {
-          let { width, height } = img;
-          if (width > maxDim || height > maxDim) {
-            if (width >= height) {
-              height = Math.round(height * (maxDim / width));
-              width = maxDim;
-            } else {
-              width = Math.round(width * (maxDim / height));
-              height = maxDim;
-            }
-          }
-          const canvas = document.createElement("canvas");
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext("2d");
-          ctx.drawImage(img, 0, 0, width, height);
-          resolve(canvas.toDataURL("image/jpeg", quality));
-        };
-        img.src = reader.result;
-      };
+      reader.onload = () => resizeDataUrl(reader.result, maxDim, quality).then(resolve, reject);
       reader.readAsDataURL(file);
     });
   }
@@ -1370,6 +1409,26 @@
     if (/[",\n]/.test(str)) return `"${str.replace(/"/g, '""')}"`;
     return str;
   }
+
+  document.getElementById("recompress-photos-btn").addEventListener("click", async () => {
+    if (!(await ensureConnectedOrPrompt())) return;
+    if (!confirm(t("recompress_photos_confirm"))) return;
+    const btn = document.getElementById("recompress-photos-btn");
+    btn.disabled = true;
+    try {
+      const { count, beforeBytes, afterBytes } = await recompressAllPhotos();
+      await loadAllFromDisk();
+      renderInventoryTable();
+      const beforeKb = Math.round((beforeBytes * 0.75) / 1024);
+      const afterKb = Math.round((afterBytes * 0.75) / 1024);
+      alert(t("recompress_photos_done", { count, beforeKb, afterKb }));
+    } catch (err) {
+      console.error(err);
+      alert(t("alert_server_error"));
+    } finally {
+      btn.disabled = state.readOnly;
+    }
+  });
 
   document.getElementById("export-csv-btn").addEventListener("click", () => {
     const headers = [
