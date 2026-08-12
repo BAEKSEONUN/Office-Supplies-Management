@@ -146,14 +146,32 @@
     });
   }
 
-  async function updateItemOnDisk(id, patch) {
+  // `adjustment`, when given, records a 입고/출고 movement in the same
+  // read-modify-write pass as the item patch (e.g. a manual current-stock
+  // correction from the edit modal) so the change stays reflected in the
+  // item's movement history instead of just silently changing a number.
+  async function updateItemOnDisk(id, patch, adjustment) {
     return withMutationLock(async () => {
       const data = await readDataFile();
       const item = data.items.find((it) => it.id === id);
       if (!item) throw new Error("item not found");
       Object.assign(item, patch);
+      let movement = null;
+      if (adjustment && adjustment.qty > 0) {
+        movement = {
+          id: crypto.randomUUID(),
+          itemId: item.id,
+          itemName: item.name,
+          itemUnit: item.unit || "",
+          type: adjustment.type,
+          date: adjustment.date,
+          qty: adjustment.qty,
+          recipient: adjustment.recipient,
+        };
+        data.movements.unshift(movement);
+      }
       await writeDataFile(data);
-      return item;
+      return { item, movement };
     });
   }
 
@@ -454,6 +472,7 @@
       alert_select_one_to_edit: "수정할 소모품을 하나만 선택해주세요.",
       confirm_delete_selected: "선택한 {count}개 소모품을 삭제하시겠습니까? 관련 입출고 내역은 유지됩니다.",
       alert_item_updated: "소모품 정보가 수정되었습니다.",
+      current_stock_adjust_label: "현재재고 직접 수정",
       in_btn: "입고",
       out_btn: "출고",
       history_btn: "이력",
@@ -552,6 +571,7 @@
       alert_select_one_to_edit: "Vui lòng chỉ chọn một vật tư để sửa.",
       confirm_delete_selected: "Bạn có muốn xóa {count} vật tư đã chọn không? Lịch sử nhập xuất liên quan vẫn được giữ lại.",
       alert_item_updated: "Đã cập nhật thông tin vật tư.",
+      current_stock_adjust_label: "Điều chỉnh tồn kho hiện tại",
       in_btn: "Nhập",
       out_btn: "Xuất",
       history_btn: "Lịch sử",
@@ -1009,23 +1029,41 @@
 
     if (!(await ensureConnectedOrPrompt())) return;
 
-    const { totalIn, totalOut } = getItemTotals(editingItemId, buildMovementIndex());
+    // The current-stock field is back-calculated against 적정재고수량 via
+    // movement totals; back-solving target directly (an earlier approach)
+    // had a hard floor at 0 -- once totalIn/totalOut pushed the achievable
+    // minimum current above what a user typed, target got clamped to 0 and
+    // the edit silently failed to take effect. Recording the difference as
+    // a real 입고/출고 adjustment movement instead has no such floor and
+    // also keeps an audit trail, matching how every other stock change in
+    // this app already works.
+    const movementIndex = buildMovementIndex();
+    const editingItemRef = state.items.find((it) => it.id === editingItemId);
+    const beforeCurrent = editingItemRef ? computeItemStats(editingItemRef, movementIndex).current : 0;
     const enteredCurrent = Math.max(0, Number(editItemCurrentInput.value) || 0);
-    const safeTotalIn = Number(totalIn) || 0;
-    const safeTotalOut = Number(totalOut) || 0;
+    const delta = enteredCurrent - beforeCurrent;
+
     const patch = {
       name,
-      target: Math.max(0, enteredCurrent + safeTotalOut - safeTotalIn),
       unit: editItemUnitInput.value.trim(),
       note: editItemNoteInput.value.trim(),
       photo: editingItemPhoto,
     };
+    const adjustment = delta !== 0
+      ? {
+          type: delta > 0 ? "입고" : "출고",
+          qty: Math.abs(delta),
+          date: new Date().toISOString().slice(0, 10),
+          recipient: t("current_stock_adjust_label"),
+        }
+      : null;
 
     editItemSaveBtn.disabled = true;
     try {
-      await updateItemOnDisk(editingItemId, patch);
+      const { movement } = await updateItemOnDisk(editingItemId, patch, adjustment);
       const item = state.items.find((it) => it.id === editingItemId);
       if (item) Object.assign(item, patch);
+      if (movement) state.movements.unshift(movement);
       markUpdated();
       closeEditItemModal();
       clearSelection();
