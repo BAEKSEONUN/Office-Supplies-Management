@@ -648,12 +648,15 @@
       : `<span class="photo-thumb-empty"></span>`;
   }
 
-  // Photos are only ever shown as small thumbnails, but an unprocessed
-  // phone photo can be several MB — and since the whole data file gets
-  // rewritten on every single save, that made every action on the shared
-  // file slow. Downscale + re-encode as JPEG before it ever gets stored.
-  const PHOTO_MAX_DIMENSION = 480;
-  const PHOTO_JPEG_QUALITY = 0.72;
+  // Photos are only ever shown as 36x36px thumbnails (table rows and the
+  // edit-modal preview -- see .photo-preview/.photo-thumb in style.css), but
+  // an unprocessed phone photo can be several MB. Since the whole shared
+  // data file gets rewritten on every single save, oversized stored photos
+  // directly slow down every save, not just photo uploads -- so downscale
+  // hard. 120px covers even a 3x-density display's 36px box with headroom
+  // to spare, and quality 0.6 is still clean at that size.
+  const PHOTO_MAX_DIMENSION = 120;
+  const PHOTO_JPEG_QUALITY = 0.6;
 
   function resizeImageFile(file, maxDim = PHOTO_MAX_DIMENSION, quality = PHOTO_JPEG_QUALITY) {
     return new Promise((resolve, reject) => {
