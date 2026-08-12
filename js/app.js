@@ -971,6 +971,7 @@
   const editItemPhotoPreview = document.getElementById("edit-item-photo-preview");
   const editItemNameInput = document.getElementById("edit-item-name");
   const editItemCurrentInput = document.getElementById("edit-item-current");
+  const editItemTargetInput = document.getElementById("edit-item-target");
   const editItemUnitInput = document.getElementById("edit-item-unit");
   const editItemNoteInput = document.getElementById("edit-item-note");
   const editItemCloseBtn = document.getElementById("edit-item-close");
@@ -985,6 +986,7 @@
     editItemNameInput.value = item.name;
     const stats = computeItemStats(item, buildMovementIndex());
     editItemCurrentInput.value = stats.current;
+    editItemTargetInput.value = Math.max(0, Number(item.target) || 0);
     editItemUnitInput.value = item.unit || "";
     editItemNoteInput.value = item.note || "";
     editItemPhotoInput.value = "";
@@ -1031,22 +1033,28 @@
 
     if (!(await ensureConnectedOrPrompt())) return;
 
-    // The current-stock field is back-calculated against 적정재고수량 via
-    // movement totals; back-solving target directly (an earlier approach)
-    // had a hard floor at 0 -- once totalIn/totalOut pushed the achievable
-    // minimum current above what a user typed, target got clamped to 0 and
-    // the edit silently failed to take effect. Recording the difference as
-    // a real 입고/출고 adjustment movement instead has no such floor and
-    // also keeps an audit trail, matching how every other stock change in
-    // this app already works.
+    // 적정재고수량 is now a plain, directly-editable field (patched as-is).
+    // 현재재고 is still independent of it: back-solving target from current
+    // stock (an earlier approach) had a hard floor at 0 and silently failed
+    // whenever totalIn/totalOut pushed the achievable minimum above what a
+    // user typed. Instead, the gap between the entered current stock and
+    // "what current would be under the entered target with today's existing
+    // movements" is recorded as a real 입고/출고 adjustment -- so whatever
+    // is typed into 현재재고 is exactly what gets saved, regardless of
+    // whatever 적정재고수량 was also changed to in the same edit, and it
+    // keeps an audit trail like every other stock change in this app.
     const movementIndex = buildMovementIndex();
     const editingItemRef = state.items.find((it) => it.id === editingItemId);
-    const beforeCurrent = editingItemRef ? computeItemStats(editingItemRef, movementIndex).current : 0;
+    const enteredTarget = Math.max(0, Number(editItemTargetInput.value) || 0);
+    const interimCurrent = editingItemRef
+      ? computeItemStats({ ...editingItemRef, target: enteredTarget }, movementIndex).current
+      : 0;
     const enteredCurrent = Math.max(0, Number(editItemCurrentInput.value) || 0);
-    const delta = enteredCurrent - beforeCurrent;
+    const delta = enteredCurrent - interimCurrent;
 
     const patch = {
       name,
+      target: enteredTarget,
       unit: editItemUnitInput.value.trim(),
       note: editItemNoteInput.value.trim(),
       photo: editingItemPhoto,
