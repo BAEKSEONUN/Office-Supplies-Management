@@ -577,8 +577,8 @@ tbody tr:hover {
   min-width: 220px;
 }
 
-.bulk-item-table .bulk-note {
-  min-width: 240px;
+.bulk-item-table .bulk-current {
+  min-width: 140px;
 }
 
 .bulk-item-table .bulk-unit {
@@ -977,14 +977,14 @@ tbody tr:hover {
 }
 
 .movement-modal-box {
-  max-width: 1080px;
-  width: 94vw;
+  max-width: 1320px;
+  width: 96vw;
   padding: 2rem;
 }
 
 .history-modal-box {
-  max-width: 760px;
-  width: 90vw;
+  max-width: 900px;
+  width: 92vw;
 }
 
 .history-filter {

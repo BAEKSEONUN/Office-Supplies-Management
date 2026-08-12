@@ -126,7 +126,8 @@
       const created = entries.map((entry) => ({
         id: crypto.randomUUID(),
         name: entry.name,
-        target: Math.max(0, Number(entry.target) || 0),
+        // brand-new item, no movements yet, so target IS the current stock
+        target: Math.max(0, Number(entry.currentStock) || 0),
         unit: entry.unit || "",
         note: entry.note || "",
         photo: entry.photo || "",
@@ -166,7 +167,9 @@
           type: adjustment.type,
           date: adjustment.date,
           qty: adjustment.qty,
-          recipient: adjustment.recipient,
+          recipient: adjustment.recipient || "",
+          note: adjustment.note || "",
+          isAdjustment: !!adjustment.isAdjustment,
         };
         data.movements.unshift(movement);
       }
@@ -861,7 +864,6 @@
   function applyBulkRowPlaceholders() {
     bulkTbody.querySelectorAll(".bulk-name").forEach((el) => (el.placeholder = t("th_name")));
     bulkTbody.querySelectorAll(".bulk-unit").forEach((el) => (el.placeholder = t("th_unit")));
-    bulkTbody.querySelectorAll(".bulk-note").forEach((el) => (el.placeholder = t("th_note")));
     bulkTbody.querySelectorAll(".bulk-row-delete").forEach((el) => (el.textContent = t("delete_btn")));
   }
 
@@ -878,7 +880,7 @@
       </td>
       <td><input type="text" class="bulk-name" placeholder="${t("th_name")}"></td>
       <td><input type="text" class="bulk-unit" placeholder="${t("th_unit")}"></td>
-      <td><input type="text" class="bulk-note" placeholder="${t("th_note")}"></td>
+      <td><input type="number" class="bulk-current" min="0" step="1" placeholder="0"></td>
       <td><button type="button" class="delete-btn bulk-row-delete">${t("delete_btn")}</button></td>
     `;
     bulkTbody.appendChild(tr);
@@ -933,7 +935,7 @@
       payload.push({
         name,
         unit: tr.querySelector(".bulk-unit").value.trim(),
-        note: tr.querySelector(".bulk-note").value.trim(),
+        currentStock: Math.max(0, Number(tr.querySelector(".bulk-current").value) || 0),
         photo: bulkPhotos.get(tr.dataset.rowId) || "",
       });
     });
@@ -1054,7 +1056,9 @@
           type: delta > 0 ? "입고" : "출고",
           qty: Math.abs(delta),
           date: new Date().toISOString().slice(0, 10),
-          recipient: t("current_stock_adjust_label"),
+          recipient: "",
+          note: t("current_stock_adjust_label"),
+          isAdjustment: true,
         }
       : null;
 
@@ -1102,48 +1106,60 @@
   // instead of every item independently re-scanning the full movements
   // array (that O(items × movements) pattern is what made rendering slow
   // once the history grew — this turns it into O(items + movements)).
+  // totalIn/totalOut count only real 입고/출고 (what the 사용수량/입고수량
+  // columns and consumption stats show); allIn/allOut also include manual
+  // current-stock corrections (isAdjustment) so `current` stays physically
+  // accurate without those corrections inflating the "사용수량" column.
   function buildMovementIndex() {
     const index = new Map();
     state.movements.forEach((m) => {
       let entry = index.get(m.itemId);
       if (!entry) {
-        entry = { totalIn: 0, totalOut: 0, outTotal: 0, earliestOutDate: null };
+        entry = { totalIn: 0, totalOut: 0, allIn: 0, allOut: 0, earliestOutDate: null };
         index.set(m.itemId, entry);
       }
       // qty is expected to already be numeric (movements are created via
       // Number(input.value)), but coerce defensively anyway: a single
       // string qty slipping in here (e.g. from older/hand-edited data)
-      // would turn totalIn/totalOut into string concatenation via +=,
-      // which then poisons the current-stock save math (mixed +/- on a
-      // string produces NaN, and JSON.stringify(NaN) silently writes null).
+      // would turn totals into string concatenation via +=, which then
+      // poisons the current-stock save math (mixed +/- on a string
+      // produces NaN, and JSON.stringify(NaN) silently writes null).
       const qty = Number(m.qty) || 0;
       if (m.type === "입고") {
-        entry.totalIn += qty;
+        entry.allIn += qty;
+        if (!m.isAdjustment) entry.totalIn += qty;
       } else if (m.type === "출고") {
-        entry.totalOut += qty;
-        entry.outTotal += qty;
-        if (!entry.earliestOutDate || m.date < entry.earliestOutDate) entry.earliestOutDate = m.date;
+        entry.allOut += qty;
+        if (!m.isAdjustment) {
+          entry.totalOut += qty;
+          if (!entry.earliestOutDate || m.date < entry.earliestOutDate) entry.earliestOutDate = m.date;
+        }
       }
     });
     return index;
-  }
-
-  function getItemTotals(itemId, movementIndex) {
-    const entry = movementIndex.get(itemId);
-    return entry ? { totalIn: entry.totalIn, totalOut: entry.totalOut } : { totalIn: 0, totalOut: 0 };
   }
 
   // 현재재고 = 적정재고수량 − 사용수량(출고) + 입고수량
   // 재고율 = 현재재고 ÷ 적정재고수량
   // 상태: 재고율 > 80% 정상, 50% < 재고율 ≤ 80% 주의, 재고율 ≤ 50% 부족
   function computeItemStats(item, movementIndex) {
-    const { totalIn, totalOut } = getItemTotals(item.id, movementIndex);
+    const entry = movementIndex.get(item.id);
+    const allIn = entry ? entry.allIn : 0;
+    const allOut = entry ? entry.allOut : 0;
     const target = Math.max(0, Number(item.target) || 0);
-    const current = target - totalOut + totalIn;
+    const current = target - allOut + allIn;
     const shortage = Math.max(0, target - current);
     const ratio = target > 0 ? Math.round((current / target) * 100) : 0;
     const status = ratio > 80 ? "ok" : ratio > 50 ? "warn" : "danger";
-    return { target, totalIn, totalOut, current, shortage, ratio, status };
+    return {
+      target,
+      totalIn: entry ? entry.totalIn : 0,
+      totalOut: entry ? entry.totalOut : 0,
+      current,
+      shortage,
+      ratio,
+      status,
+    };
   }
 
   // 주간/월간 소요량: 최초 출고일부터 오늘까지의 일평균 출고량을 기준으로 환산
@@ -1172,7 +1188,7 @@
   // 렌더링 흐름을 그대로 타면 자동으로 최신 값이 반영된다.
   function getConsumptionStats(itemId, movementIndex) {
     const entry = movementIndex.get(itemId);
-    if (!entry || entry.outTotal === 0) return null;
+    if (!entry || entry.totalOut === 0) return null;
 
     const earliest = new Date(`${entry.earliestOutDate}T00:00:00`);
     const now = new Date();
@@ -1180,7 +1196,7 @@
     const weeks = Math.max(1, countWeeksBetween(earliest, now));
     const months = Math.max(1, countMonthsBetween(earliest, now));
 
-    return { weekly: entry.outTotal / weeks, monthly: entry.outTotal / months };
+    return { weekly: entry.totalOut / weeks, monthly: entry.totalOut / months };
   }
 
   function consumptionLinesHtml(itemId, movementIndex) {
@@ -1396,6 +1412,7 @@
 
   function applyMovementRowPlaceholders() {
     bulkMovementTbody.querySelectorAll(".movement-recipient").forEach((el) => (el.placeholder = t("placeholder_recipient")));
+    bulkMovementTbody.querySelectorAll(".movement-note").forEach((el) => (el.placeholder = t("th_note")));
     bulkMovementTbody.querySelectorAll(".movement-row-delete").forEach((el) => (el.textContent = t("delete_btn")));
     bulkMovementTbody.querySelectorAll(".movement-type-select").forEach((sel) => {
       const val = sel.value;
@@ -1428,6 +1445,7 @@
       </td>
       <td><input type="number" class="movement-qty" min="1" step="1"></td>
       <td><input type="text" class="movement-recipient" placeholder="${t("placeholder_recipient")}"></td>
+      <td><input type="text" class="movement-note" placeholder="${t("th_note")}"></td>
       <td><button type="button" class="delete-btn movement-row-delete">${t("delete_btn")}</button></td>
     `;
     bulkMovementTbody.appendChild(tr);
@@ -1444,6 +1462,14 @@
       const typeSelect = tr.querySelector(".movement-type-select");
       typeSelect.value = prefill.type;
       typeSelect.disabled = true;
+    }
+    if (prefill && prefill.itemId) {
+      // Likewise, opened from a specific item's button -- the item dropdown
+      // must stay locked to that one item. Leaving it enabled meant clicking
+      // into the field showed every other item's name too, which read as
+      // "the wrong item's dropdown popped up" even though the preselected
+      // value was correct.
+      tr.querySelector(".movement-item-select").disabled = true;
     }
 
     tr.querySelector(".movement-row-delete").addEventListener("click", () => {
@@ -1479,7 +1505,8 @@
     rows.forEach((tr) => {
       const qtyRaw = tr.querySelector(".movement-qty").value;
       const recipient = tr.querySelector(".movement-recipient").value.trim();
-      const attempted = qtyRaw !== "" || recipient !== "";
+      const note = tr.querySelector(".movement-note").value.trim();
+      const attempted = qtyRaw !== "" || recipient !== "" || note !== "";
       if (!attempted) return; // silently skip a completely untouched row
 
       const itemId = tr.querySelector(".movement-item-select").value;
@@ -1502,6 +1529,7 @@
         date,
         qty,
         recipient,
+        note,
       });
     });
 
@@ -1619,7 +1647,8 @@
             ${dateCell}
             <td>${inCell}</td>
             <td>${outCell}</td>
-            <td>${escapeHtml(entry.recipient)}</td>
+            <td>${escapeHtml(entry.recipient || "")}</td>
+            <td>${escapeHtml(entry.note || "")}</td>
           `;
           historyTbody.appendChild(tr);
         }
