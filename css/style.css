@@ -456,12 +456,18 @@ tbody tr:hover {
   cursor: pointer;
 }
 
-#inventory-tbody tr.row-selected {
+#inventory-tbody tr.row-selected,
+#history-tbody tr.row-selected {
   background: #dceafe;
 }
 
-#inventory-tbody tr.row-selected:hover {
+#inventory-tbody tr.row-selected:hover,
+#history-tbody tr.row-selected:hover {
   background: #cfe1fb;
+}
+
+#history-tbody tr[data-movement-id] {
+  cursor: pointer;
 }
 
 .selection-toolbar {
@@ -485,6 +491,10 @@ tbody tr:hover {
 .selection-toolbar-actions {
   display: flex;
   gap: 0.5rem;
+}
+
+.selection-toolbar-actions[hidden] {
+  display: none;
 }
 
 .danger-btn {
@@ -959,8 +969,8 @@ tbody tr:hover {
 }
 
 .history-modal-box {
-  max-width: 900px;
-  width: 92vw;
+  max-width: 980px;
+  width: 94vw;
 }
 
 .history-filter {
@@ -990,17 +1000,6 @@ tbody tr:hover {
 
 #history-table tbody tr td:not(.history-date-cell) {
   white-space: normal;
-}
-
-.history-actions {
-  display: flex;
-  gap: 0.35rem;
-  white-space: nowrap;
-}
-
-.history-actions button {
-  padding: 0.3rem 0.6rem;
-  font-size: 0.78rem;
 }
 
 .connect-modal-box p {

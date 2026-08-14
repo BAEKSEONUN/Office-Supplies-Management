@@ -491,6 +491,7 @@
       edit_btn: "수정",
       edit_item_title: "소모품 수정",
       selection_count: "{count}개 선택됨",
+      history_editing_label: "수정 중",
       alert_select_one_to_edit: "수정할 소모품을 하나만 선택해주세요.",
       confirm_delete_selected: "선택한 {count}개 소모품을 삭제하시겠습니까? 관련 입출고 내역은 유지됩니다.",
       confirm_delete_movement: "이 입출고 이력을 삭제하시겠습니까? 현재재고 계산에 반영됩니다.",
@@ -591,6 +592,7 @@
       edit_btn: "Sửa",
       edit_item_title: "Sửa vật tư",
       selection_count: "Đã chọn {count} mục",
+      history_editing_label: "Đang chỉnh sửa",
       alert_select_one_to_edit: "Vui lòng chỉ chọn một vật tư để sửa.",
       confirm_delete_selected: "Bạn có muốn xóa {count} vật tư đã chọn không? Lịch sử nhập xuất liên quan vẫn được giữ lại.",
       confirm_delete_movement: "Bạn có muốn xóa lịch sử nhập/xuất này không? Sẽ ảnh hưởng đến tồn kho hiện tại.",
@@ -1605,7 +1607,16 @@
   const historyModalCloseBtn = document.getElementById("history-modal-close");
   const historyYearSelect = document.getElementById("history-year");
   const historyMonthSelect = document.getElementById("history-month");
+  const historySelectionToolbar = document.getElementById("history-selection-toolbar");
+  const historySelectionCountText = document.getElementById("history-selection-count-text");
+  const historySelectionNormalActions = document.getElementById("history-selection-normal-actions");
+  const historySelectionEditActions = document.getElementById("history-selection-edit-actions");
+  const historySelectionEditBtn = document.getElementById("history-selection-edit-btn");
+  const historySelectionDeleteBtn = document.getElementById("history-selection-delete-btn");
+  const historyEditSaveBtn = document.getElementById("history-edit-save-btn");
+  const historyEditCancelBtn = document.getElementById("history-edit-cancel-btn");
 
+  let selectedMovementId = null;
   let editingMovementId = null;
 
   const HISTORY_START_YEAR = 2026;
@@ -1634,6 +1645,7 @@
 
     state.historyItemId = itemId;
     editingMovementId = null;
+    selectedMovementId = null;
     historyModalTitle.textContent = `${item.name} ${t("history_title_suffix")}`;
     historyYearSelect.value = "";
     historyMonthSelect.value = "";
@@ -1655,13 +1667,12 @@
       <td>${outCell}</td>
       <td>${escapeHtml(entry.recipient || "")}</td>
       <td>${escapeHtml(entry.note || "")}</td>
-      <td class="history-actions">
-        <button type="button" class="secondary-btn history-edit-btn" data-id="${entry.id}" ${state.readOnly ? "disabled" : ""}>${t("edit_btn")}</button>
-        <button type="button" class="danger-btn history-delete-btn" data-id="${entry.id}" ${state.readOnly ? "disabled" : ""}>${t("delete_btn")}</button>
-      </td>
     `;
   }
 
+  // Save/cancel live in the selection toolbar (see updateHistorySelectionToolbar),
+  // not as per-row buttons -- with the actions column removed, a narrow cell
+  // squeezing two buttons was what made them wrap onto their own line.
   function historyRowEditHtml(entry, dateCell) {
     return `
       ${dateCell}
@@ -1670,10 +1681,6 @@
       </td>
       <td><input type="text" class="history-edit-recipient" value="${escapeHtml(entry.recipient || "")}" placeholder="${t("placeholder_recipient")}"></td>
       <td><input type="text" class="history-edit-note" value="${escapeHtml(entry.note || "")}" placeholder="${t("th_note")}"></td>
-      <td class="history-actions">
-        <button type="button" class="accent-btn history-save-btn" data-id="${entry.id}">${t("save_btn")}</button>
-        <button type="button" class="secondary-btn history-cancel-btn" data-id="${entry.id}">${t("close_btn")}</button>
-      </td>
     `;
   }
 
@@ -1714,86 +1721,116 @@
         for (let k = i; k < j; k++) {
           const entry = entries[k];
           const tr = document.createElement("tr");
+          tr.dataset.movementId = entry.id;
           const dateCell = k === i ? `<td rowspan="${groupSize}" class="history-date-cell">${escapeHtml(date)}</td>` : "";
-          tr.innerHTML = entry.id === editingMovementId
-            ? historyRowEditHtml(entry, dateCell)
-            : historyRowViewHtml(entry, dateCell);
+          const isEditing = entry.id === editingMovementId;
+          tr.innerHTML = isEditing ? historyRowEditHtml(entry, dateCell) : historyRowViewHtml(entry, dateCell);
+          tr.classList.toggle("row-selected", entry.id === selectedMovementId);
+          if (!isEditing) {
+            // Clicking a row selects it (click again to deselect) instead of
+            // per-row buttons -- edit/delete happen from the toolbar above
+            // once something is selected. Disabled while a different row is
+            // mid-edit, so a stray click can't lose in-progress edits.
+            tr.addEventListener("click", () => {
+              if (editingMovementId) return;
+              selectedMovementId = selectedMovementId === entry.id ? null : entry.id;
+              renderHistoryTable();
+            });
+          }
           historyTbody.appendChild(tr);
         }
         i = j;
       }
     }
 
-    historyTbody.querySelectorAll(".history-edit-btn").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        editingMovementId = btn.dataset.id;
-        renderHistoryTable();
-      });
-    });
-
-    historyTbody.querySelectorAll(".history-cancel-btn").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        editingMovementId = null;
-        renderHistoryTable();
-      });
-    });
-
-    historyTbody.querySelectorAll(".history-save-btn").forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        if (!(await ensureConnectedOrPrompt())) return;
-        const id = btn.dataset.id;
-        const tr = btn.closest("tr");
-        const qty = Number(tr.querySelector(".history-edit-qty").value);
-        const recipient = tr.querySelector(".history-edit-recipient").value.trim();
-        const note = tr.querySelector(".history-edit-note").value.trim();
-        if (!qty || qty <= 0) {
-          alert(t("alert_invalid_qty"));
-          return;
-        }
-        btn.disabled = true;
-        try {
-          await updateMovementOnDisk(id, { qty, recipient, note });
-          const movement = state.movements.find((m) => m.id === id);
-          if (movement) Object.assign(movement, { qty, recipient, note });
-          editingMovementId = null;
-          markUpdated();
-          renderHistoryTable();
-          renderInventoryTable();
-        } catch (err) {
-          console.error(err);
-          alert(t("alert_server_error"));
-        } finally {
-          btn.disabled = false;
-        }
-      });
-    });
-
-    historyTbody.querySelectorAll(".history-delete-btn").forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        if (!(await ensureConnectedOrPrompt())) return;
-        if (!confirm(t("confirm_delete_movement"))) return;
-        const id = btn.dataset.id;
-        btn.disabled = true;
-        try {
-          await deleteMovementOnDisk(id);
-          state.movements = state.movements.filter((m) => m.id !== id);
-          markUpdated();
-          renderHistoryTable();
-          renderInventoryTable();
-        } catch (err) {
-          console.error(err);
-          alert(t("alert_server_error"));
-        } finally {
-          btn.disabled = state.readOnly;
-        }
-      });
-    });
+    updateHistorySelectionToolbar();
   }
+
+  function updateHistorySelectionToolbar() {
+    if (editingMovementId) {
+      historySelectionToolbar.hidden = false;
+      historySelectionCountText.textContent = t("history_editing_label");
+      historySelectionNormalActions.hidden = true;
+      historySelectionEditActions.hidden = false;
+    } else if (selectedMovementId) {
+      historySelectionToolbar.hidden = false;
+      historySelectionCountText.textContent = t("selection_count", { count: 1 });
+      historySelectionNormalActions.hidden = false;
+      historySelectionEditActions.hidden = true;
+      historySelectionEditBtn.disabled = state.readOnly;
+      historySelectionDeleteBtn.disabled = state.readOnly;
+    } else {
+      historySelectionToolbar.hidden = true;
+    }
+  }
+
+  historySelectionEditBtn.addEventListener("click", () => {
+    if (!selectedMovementId) return;
+    editingMovementId = selectedMovementId;
+    renderHistoryTable();
+  });
+
+  historyEditCancelBtn.addEventListener("click", () => {
+    editingMovementId = null;
+    renderHistoryTable();
+  });
+
+  historyEditSaveBtn.addEventListener("click", async () => {
+    if (!editingMovementId) return;
+    if (!(await ensureConnectedOrPrompt())) return;
+    const id = editingMovementId;
+    const tr = historyTbody.querySelector(`tr[data-movement-id="${id}"]`);
+    if (!tr) return;
+    const qty = Number(tr.querySelector(".history-edit-qty").value);
+    const recipient = tr.querySelector(".history-edit-recipient").value.trim();
+    const note = tr.querySelector(".history-edit-note").value.trim();
+    if (!qty || qty <= 0) {
+      alert(t("alert_invalid_qty"));
+      return;
+    }
+    historyEditSaveBtn.disabled = true;
+    try {
+      await updateMovementOnDisk(id, { qty, recipient, note });
+      const movement = state.movements.find((m) => m.id === id);
+      if (movement) Object.assign(movement, { qty, recipient, note });
+      editingMovementId = null;
+      markUpdated();
+      renderHistoryTable();
+      renderInventoryTable();
+    } catch (err) {
+      console.error(err);
+      alert(t("alert_server_error"));
+    } finally {
+      historyEditSaveBtn.disabled = false;
+    }
+  });
+
+  historySelectionDeleteBtn.addEventListener("click", async () => {
+    if (!selectedMovementId) return;
+    if (!(await ensureConnectedOrPrompt())) return;
+    if (!confirm(t("confirm_delete_movement"))) return;
+    const id = selectedMovementId;
+    historySelectionDeleteBtn.disabled = true;
+    try {
+      await deleteMovementOnDisk(id);
+      state.movements = state.movements.filter((m) => m.id !== id);
+      selectedMovementId = null;
+      markUpdated();
+      renderHistoryTable();
+      renderInventoryTable();
+    } catch (err) {
+      console.error(err);
+      alert(t("alert_server_error"));
+    } finally {
+      historySelectionDeleteBtn.disabled = state.readOnly;
+    }
+  });
 
   function closeHistoryModal() {
     historyModalOverlay.hidden = true;
     state.historyItemId = null;
     editingMovementId = null;
+    selectedMovementId = null;
   }
 
   historyYearSelect.addEventListener("change", renderHistoryTable);
