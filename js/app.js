@@ -188,6 +188,25 @@
     });
   }
 
+  async function updateMovementOnDisk(id, patch) {
+    return withMutationLock(async () => {
+      const data = await readDataFile();
+      const movement = data.movements.find((m) => m.id === id);
+      if (!movement) throw new Error("movement not found");
+      Object.assign(movement, patch);
+      await writeDataFile(data);
+      return movement;
+    });
+  }
+
+  async function deleteMovementOnDisk(id) {
+    return withMutationLock(async () => {
+      const data = await readDataFile();
+      data.movements = data.movements.filter((m) => m.id !== id);
+      await writeDataFile(data);
+    });
+  }
+
   async function loadAllFromDisk() {
     const data = await readDataFile();
     state.items = data.items;
@@ -474,6 +493,7 @@
       selection_count: "{count}개 선택됨",
       alert_select_one_to_edit: "수정할 소모품을 하나만 선택해주세요.",
       confirm_delete_selected: "선택한 {count}개 소모품을 삭제하시겠습니까? 관련 입출고 내역은 유지됩니다.",
+      confirm_delete_movement: "이 입출고 이력을 삭제하시겠습니까? 현재재고 계산에 반영됩니다.",
       alert_item_updated: "소모품 정보가 수정되었습니다.",
       current_stock_adjust_label: "현재재고 직접 수정",
       in_btn: "입고",
@@ -573,6 +593,7 @@
       selection_count: "Đã chọn {count} mục",
       alert_select_one_to_edit: "Vui lòng chỉ chọn một vật tư để sửa.",
       confirm_delete_selected: "Bạn có muốn xóa {count} vật tư đã chọn không? Lịch sử nhập xuất liên quan vẫn được giữ lại.",
+      confirm_delete_movement: "Bạn có muốn xóa lịch sử nhập/xuất này không? Sẽ ảnh hưởng đến tồn kho hiện tại.",
       alert_item_updated: "Đã cập nhật thông tin vật tư.",
       current_stock_adjust_label: "Điều chỉnh tồn kho hiện tại",
       in_btn: "Nhập",
@@ -1585,6 +1606,8 @@
   const historyYearSelect = document.getElementById("history-year");
   const historyMonthSelect = document.getElementById("history-month");
 
+  let editingMovementId = null;
+
   const HISTORY_START_YEAR = 2026;
 
   function populateHistoryFilters() {
@@ -1610,12 +1633,48 @@
     if (!item) return;
 
     state.historyItemId = itemId;
+    editingMovementId = null;
     historyModalTitle.textContent = `${item.name} ${t("history_title_suffix")}`;
     historyYearSelect.value = "";
     historyMonthSelect.value = "";
 
     renderHistoryTable();
     historyModalOverlay.hidden = false;
+  }
+
+  function historyRowViewHtml(entry, dateCell) {
+    // Current-stock corrections (isAdjustment) change the stock number
+    // itself but aren't a real 입고/출고 event, so they show no quantity
+    // here -- only the 비고 label ("현재재고 직접 수정") marks that the row
+    // happened.
+    const inCell = !entry.isAdjustment && entry.type === "입고" ? escapeHtml(String(entry.qty)) : "-";
+    const outCell = !entry.isAdjustment && entry.type === "출고" ? escapeHtml(String(entry.qty)) : "-";
+    return `
+      ${dateCell}
+      <td>${inCell}</td>
+      <td>${outCell}</td>
+      <td>${escapeHtml(entry.recipient || "")}</td>
+      <td>${escapeHtml(entry.note || "")}</td>
+      <td class="history-actions">
+        <button type="button" class="secondary-btn history-edit-btn" data-id="${entry.id}" ${state.readOnly ? "disabled" : ""}>${t("edit_btn")}</button>
+        <button type="button" class="danger-btn history-delete-btn" data-id="${entry.id}" ${state.readOnly ? "disabled" : ""}>${t("delete_btn")}</button>
+      </td>
+    `;
+  }
+
+  function historyRowEditHtml(entry, dateCell) {
+    return `
+      ${dateCell}
+      <td colspan="2">
+        <input type="number" class="history-edit-qty" min="1" step="1" value="${entry.qty}">
+      </td>
+      <td><input type="text" class="history-edit-recipient" value="${escapeHtml(entry.recipient || "")}" placeholder="${t("placeholder_recipient")}"></td>
+      <td><input type="text" class="history-edit-note" value="${escapeHtml(entry.note || "")}" placeholder="${t("th_note")}"></td>
+      <td class="history-actions">
+        <button type="button" class="accent-btn history-save-btn" data-id="${entry.id}">${t("save_btn")}</button>
+        <button type="button" class="secondary-btn history-cancel-btn" data-id="${entry.id}">${t("close_btn")}</button>
+      </td>
+    `;
   }
 
   function renderHistoryTable() {
@@ -1656,29 +1715,85 @@
           const entry = entries[k];
           const tr = document.createElement("tr");
           const dateCell = k === i ? `<td rowspan="${groupSize}" class="history-date-cell">${escapeHtml(date)}</td>` : "";
-          // Current-stock corrections (isAdjustment) change the stock number
-          // itself but aren't a real 입고/출고 event, so they show no
-          // quantity here -- only the 비고 label ("현재재고 직접 수정") marks
-          // that the row happened.
-          const inCell = !entry.isAdjustment && entry.type === "입고" ? escapeHtml(String(entry.qty)) : "-";
-          const outCell = !entry.isAdjustment && entry.type === "출고" ? escapeHtml(String(entry.qty)) : "-";
-          tr.innerHTML = `
-            ${dateCell}
-            <td>${inCell}</td>
-            <td>${outCell}</td>
-            <td>${escapeHtml(entry.recipient || "")}</td>
-            <td>${escapeHtml(entry.note || "")}</td>
-          `;
+          tr.innerHTML = entry.id === editingMovementId
+            ? historyRowEditHtml(entry, dateCell)
+            : historyRowViewHtml(entry, dateCell);
           historyTbody.appendChild(tr);
         }
         i = j;
       }
     }
+
+    historyTbody.querySelectorAll(".history-edit-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        editingMovementId = btn.dataset.id;
+        renderHistoryTable();
+      });
+    });
+
+    historyTbody.querySelectorAll(".history-cancel-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        editingMovementId = null;
+        renderHistoryTable();
+      });
+    });
+
+    historyTbody.querySelectorAll(".history-save-btn").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        if (!(await ensureConnectedOrPrompt())) return;
+        const id = btn.dataset.id;
+        const tr = btn.closest("tr");
+        const qty = Number(tr.querySelector(".history-edit-qty").value);
+        const recipient = tr.querySelector(".history-edit-recipient").value.trim();
+        const note = tr.querySelector(".history-edit-note").value.trim();
+        if (!qty || qty <= 0) {
+          alert(t("alert_invalid_qty"));
+          return;
+        }
+        btn.disabled = true;
+        try {
+          await updateMovementOnDisk(id, { qty, recipient, note });
+          const movement = state.movements.find((m) => m.id === id);
+          if (movement) Object.assign(movement, { qty, recipient, note });
+          editingMovementId = null;
+          markUpdated();
+          renderHistoryTable();
+          renderInventoryTable();
+        } catch (err) {
+          console.error(err);
+          alert(t("alert_server_error"));
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    });
+
+    historyTbody.querySelectorAll(".history-delete-btn").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        if (!(await ensureConnectedOrPrompt())) return;
+        if (!confirm(t("confirm_delete_movement"))) return;
+        const id = btn.dataset.id;
+        btn.disabled = true;
+        try {
+          await deleteMovementOnDisk(id);
+          state.movements = state.movements.filter((m) => m.id !== id);
+          markUpdated();
+          renderHistoryTable();
+          renderInventoryTable();
+        } catch (err) {
+          console.error(err);
+          alert(t("alert_server_error"));
+        } finally {
+          btn.disabled = state.readOnly;
+        }
+      });
+    });
   }
 
   function closeHistoryModal() {
     historyModalOverlay.hidden = true;
     state.historyItemId = null;
+    editingMovementId = null;
   }
 
   historyYearSelect.addEventListener("change", renderHistoryTable);

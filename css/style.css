@@ -992,6 +992,17 @@ tbody tr:hover {
   white-space: normal;
 }
 
+.history-actions {
+  display: flex;
+  gap: 0.35rem;
+  white-space: nowrap;
+}
+
+.history-actions button {
+  padding: 0.3rem 0.6rem;
+  font-size: 0.78rem;
+}
+
 .connect-modal-box p {
   color: var(--text-muted);
   font-size: 0.9rem;
